@@ -15,7 +15,7 @@ const GoogleAuth = {
   ].join(' '),
 
   // Default demo / development Client ID (pengguna dapat memasukkan Client ID milik sendiri via Settings)
-  DEFAULT_CLIENT_ID: '712458694082-demoexamplebigbozfinvibe.apps.googleusercontent.com',
+  DEFAULT_CLIENT_ID: '143853969372-2mljoiksd6qlp5q2der8tal1ilan17c1.apps.googleusercontent.com',
 
   // Variabel in-memory (rahasia & tidak persisten di disk)
   _tokenClient: null,
