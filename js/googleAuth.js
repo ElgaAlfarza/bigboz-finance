@@ -74,6 +74,15 @@ const GoogleAuth = {
       this._isInitialized = true;
       console.log('[GoogleAuth] Token client berhasil diinisialisasi.');
 
+      // Pulihkan token dari sessionStorage jika masih valid (persist saat refresh)
+      const savedToken = sessionStorage.getItem('bigboz_access_token');
+      const savedExpiry = Number(sessionStorage.getItem('bigboz_token_expiry') || 0);
+      if (savedToken && Date.now() < savedExpiry) {
+        this._accessToken = savedToken;
+        this._tokenExpiresAt = savedExpiry;
+        console.log('[GoogleAuth] Token dipulihkan dari sessionStorage. Sisa waktu (detik):', Math.round((savedExpiry - Date.now()) / 1000));
+      }
+
       // Muat profil cache dari sesi sebelumnya (jika ada) untuk UI cepat
       const cachedProfile = localStorage.getItem('bigboz_user_profile');
       if (cachedProfile) {
@@ -120,6 +129,10 @@ const GoogleAuth = {
     // expires_in biasanya 3599 detik
     const expiresInSec = Number(tokenResponse.expires_in) || 3600;
     this._tokenExpiresAt = Date.now() + (expiresInSec * 1000);
+
+    // Simpan token ke sessionStorage agar persists saat halaman di-refresh
+    sessionStorage.setItem('bigboz_access_token', this._accessToken);
+    sessionStorage.setItem('bigboz_token_expiry', String(this._tokenExpiresAt));
 
     console.log('[GoogleAuth] Access token berhasil didapatkan di memori. Expire dalam (detik):', expiresInSec);
 
@@ -261,9 +274,11 @@ const GoogleAuth = {
     this._tokenExpiresAt = 0;
     this._userProfile = null;
 
-    // Bersihkan flag auth di localStorage (tanpa menghapus data cache offline agar data tidak hilang)
+    // Bersihkan flag auth di localStorage dan token di sessionStorage
     localStorage.removeItem('bigboz_auth_state');
     localStorage.removeItem('bigboz_user_profile');
+    sessionStorage.removeItem('bigboz_access_token');
+    sessionStorage.removeItem('bigboz_token_expiry');
 
     this._notifyAuthChanged(false, { manualLogout: true });
     console.log('[GoogleAuth] Berhasil keluar dari akun Google.');
@@ -273,20 +288,23 @@ const GoogleAuth = {
 window.GoogleAuth = GoogleAuth;
 
 /**
- * Callback resmi Google Identity Services — dipanggil tepat saat library GIS selesai dimuat.
- * Digunakan untuk auto silent sign-in jika pengguna sudah pernah login sebelumnya.
+ * Callback resmi Google Identity Services — dipanggil saat GIS selesai dimuat.
+ * Memulihkan sesi dari sessionStorage (tanpa popup) jika token masih valid.
  */
 window.onGoogleLibraryLoad = function() {
   const initialized = GoogleAuth.init();
   if (!initialized) return;
 
-  // Jika ada sesi sebelumnya, coba silent token refresh otomatis tanpa popup
-  if (GoogleAuth.hasPreviousSession()) {
-    console.log('[GoogleAuth] Sesi sebelumnya terdeteksi, mencoba auto silent sign-in...');
-    try {
-      GoogleAuth._tokenClient.requestAccessToken({ prompt: '' });
-    } catch (e) {
-      console.warn('[GoogleAuth] Auto silent sign-in gagal:', e);
-    }
+  // Cek apakah token sudah dipulihkan dari sessionStorage
+  if (GoogleAuth.isSignedIn()) {
+    console.log('[GoogleAuth] Token valid dari sessionStorage, memulihkan sesi...');
+    GoogleAuth._notifyAuthChanged(true, {
+      profile: GoogleAuth.getUserProfile(),
+      token: GoogleAuth._accessToken
+    });
+    return;
   }
+
+  // Tidak ada token valid — biarkan pengguna klik tombol login sendiri
+  console.log('[GoogleAuth] Tidak ada token aktif. Menunggu login manual.');
 };
