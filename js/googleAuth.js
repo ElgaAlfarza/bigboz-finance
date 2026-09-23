@@ -62,6 +62,11 @@ const GoogleAuth = {
         },
         error_callback: (err) => {
           console.error('[GoogleAuth] OAuth Error:', err);
+          // Jangan logout jika token masih valid di memori
+          if (this.isSignedIn()) {
+            console.warn('[GoogleAuth] Error terjadi tapi token masih valid, sesi dipertahankan.');
+            return;
+          }
           this._notifyAuthChanged(false, { error: err });
         }
       });
