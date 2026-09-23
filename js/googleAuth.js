@@ -266,3 +266,22 @@ const GoogleAuth = {
 };
 
 window.GoogleAuth = GoogleAuth;
+
+/**
+ * Callback resmi Google Identity Services — dipanggil tepat saat library GIS selesai dimuat.
+ * Digunakan untuk auto silent sign-in jika pengguna sudah pernah login sebelumnya.
+ */
+window.onGoogleLibraryLoad = function() {
+  const initialized = GoogleAuth.init();
+  if (!initialized) return;
+
+  // Jika ada sesi sebelumnya, coba silent token refresh otomatis tanpa popup
+  if (GoogleAuth.hasPreviousSession()) {
+    console.log('[GoogleAuth] Sesi sebelumnya terdeteksi, mencoba auto silent sign-in...');
+    try {
+      GoogleAuth._tokenClient.requestAccessToken({ prompt: '' });
+    } catch (e) {
+      console.warn('[GoogleAuth] Auto silent sign-in gagal:', e);
+    }
+  }
+};
