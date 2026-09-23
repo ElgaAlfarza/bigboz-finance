@@ -59,18 +59,10 @@ const FinVibeApp = {
       }
     }, 450);
 
-    // 5. Jika ada sesi akun Google sebelumnya, coba silent refresh & sinkron otomatis di latar belakang
-    if (window.GoogleAuth && GoogleAuth.hasPreviousSession()) {
-      console.log('[BigBoz] Terdeteksi sesi akun Google sebelumnya, mencoba sinkronisasi cloud...');
-      GoogleAuth.refreshAccessToken()
-        .then(() => {
-          this.loadFromSheets(false);
-        })
-        .catch(err => {
-          console.warn('[BigBoz] Silent login belum berhasil, menggunakan data cache lokal:', err);
-          this.updateStorageBadge();
-        });
-    }
+
+    // 5. Sesi dipulihkan oleh onGoogleLibraryLoad via sessionStorage (tanpa popup)
+    // Tidak perlu memanggil refreshAccessToken() di sini karena akan memicu popup yang diblokir browser.
+
 
     console.log('BigBoz Finance Initialized Successfully.');
   },
