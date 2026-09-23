@@ -1,0 +1,1456 @@
+<!DOCTYPE html>
+<html lang="id" class="dark" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>BigBoz — Dashboard Analisis, Catatan Keuangan & Edukasi Finansial Pribadi</title>
+  
+  <!-- Meta SEO & App Info -->
+  <meta name="description" content="BigBoz: Asisten keuangan pribadi modern untuk mencatat transaksi, menganalisis cash flow, mengelola beban cicilan & DTI, serta edukasi literasi finansial.">
+  <meta name="theme-color" content="#090D16">
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            finDark: '#090D16',
+            finSlate: '#0F172A',
+            finSurface: '#1E293B',
+            finEmerald: '#10B981',
+            finCrimson: '#EF4444',
+            finViolet: '#8B5CF6',
+            finCyan: '#38BDF8',
+            finAmber: '#F59E0B'
+          },
+          fontFamily: {
+            sans: ['Plus Jakarta Sans', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace']
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Custom Stylesheet -->
+  <link rel="stylesheet" href="css/styles.css">
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+
+  <!-- jsPDF & AutoTable CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+
+  <!-- Canvas Confetti CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+
+  <!-- Google Identity Services (GIS) Official Library -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+</head>
+<body class="selection:bg-sky-500/30 selection:text-sky-200 antialiased pb-24 md:pb-12">
+
+  <!-- Ambient Glow Backgrounds -->
+  <div class="ambient-glow ambient-glow-top-left"></div>
+  <div class="ambient-glow ambient-glow-top-right"></div>
+  <div class="ambient-glow ambient-glow-bottom"></div>
+
+  <!-- Initial Skeleton Loader -->
+  <div id="initialSkeleton" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#090D16] transition-opacity duration-500">
+    <div class="relative w-16 h-16 mb-4">
+      <div class="absolute inset-0 rounded-2xl bg-gradient-to-tr from-sky-500 to-emerald-400 animate-spin blur-sm opacity-60"></div>
+      <div class="relative w-full h-full rounded-2xl bg-[#0F172A] flex items-center justify-center border border-white/10 shadow-2xl">
+        <i class="fa-solid fa-chart-line text-2xl text-sky-400 animate-pulse"></i>
+      </div>
+    </div>
+    <h2 class="text-2xl font-extrabold tracking-tight text-white flex items-center">
+      <span>Big</span><span class="text-[#3B82F6]">Boz</span>
+    </h2>
+    <p class="text-xs text-slate-400 mt-1">Memuat arsitektur keuangan pribadi Anda...</p>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="fixed top-4 right-4 z-50 flex flex-col gap-2 pointer-events-auto"></div>
+
+  <!-- Sticky Header / Navbar -->
+  <header class="sticky top-0 z-30 glass-nav border-b border-slate-700/50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="flex items-center justify-between h-16 gap-3">
+        
+        <!-- Brand Logo & Lockup -->
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 via-blue-600 to-indigo-600 p-[1.5px] shadow-lg shadow-sky-500/20 shrink-0">
+            <div class="w-full h-full rounded-[10px] bg-slate-950 flex items-center justify-center">
+              <i class="fa-solid fa-wallet text-sky-400 text-sm"></i>
+            </div>
+          </div>
+          <div class="flex items-center gap-2.5">
+            <h1 class="text-xl font-extrabold tracking-tight select-none flex items-center">
+              <span class="text-slate-100">Big</span><span class="text-[#3B82F6]">Boz</span>
+            </h1>
+            <!-- Badge status penyimpanan & sinkronisasi Google Sheets -->
+            <button onclick="FinVibeApp.syncGoogleSheets()" 
+                    id="storageBadge" 
+                    class="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/20 transition-all cursor-pointer shadow-sm" 
+                    title="Klik untuk sinkronisasi ulang data ke Google Sheets">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span id="syncStatusText">Tersinkron ke Google Sheets</span>
+              <span id="syncTimeText" class="text-slate-400 text-[10px]">• Baru saja</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Desktop Navigation Tabs -->
+        <nav class="hidden md:flex items-center gap-1 bg-slate-800/40 p-1 rounded-xl border border-slate-700/50">
+          <button onclick="FinVibeApp.switchTab('summary')" data-tab="summary" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-medium transition-all text-sky-400 active-tab">
+            <i class="fa-solid fa-chart-pie mr-1"></i> Ringkasan
+          </button>
+          <button onclick="FinVibeApp.switchTab('charts')" data-tab="charts" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-all">
+            <i class="fa-solid fa-chart-line mr-1"></i> Visualisasi
+          </button>
+          <button onclick="FinVibeApp.switchTab('debt')" data-tab="debt" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-all">
+            <i class="fa-solid fa-hand-holding-dollar mr-1"></i> Cicilan & Utang
+          </button>
+          <button onclick="FinVibeApp.switchTab('education')" data-tab="education" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-all">
+            <i class="fa-solid fa-graduation-cap mr-1"></i> Pusat Edukasi
+          </button>
+          <button onclick="FinVibeApp.switchTab('history')" data-tab="history" class="tab-btn px-3 py-1.5 rounded-lg text-xs font-medium text-slate-400 hover:text-slate-200 transition-all">
+            <i class="fa-solid fa-list-check mr-1"></i> Transaksi
+          </button>
+        </nav>
+
+        <!-- Action Buttons -->
+        <div class="flex items-center gap-2">
+          <!-- Theme Toggle Button -->
+          <button onclick="FinVibeApp.toggleTheme()" 
+                  id="themeToggleBtn"
+                  title="Ganti Tema (Gelap / Terang)"
+                  class="p-2 rounded-xl bg-slate-800/60 hover:bg-slate-700/80 border border-slate-700 text-slate-300 text-xs flex items-center gap-1.5 transition-all">
+            <i id="themeToggleIcon" class="fa-solid fa-sun text-amber-400 text-sm"></i>
+            <span id="themeToggleText" class="hidden lg:inline text-xs font-medium">Mode Terang</span>
+          </button>
+
+          <!-- Settings Button -->
+          <button onclick="FinVibeApp.openSettingsModal()" 
+                  title="Pengaturan & Backup Data"
+                  class="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800/60 hover:bg-slate-700/80 border border-slate-700 text-slate-300 text-xs flex items-center gap-1.5 transition-all">
+            <i class="fa-solid fa-gear text-slate-400"></i>
+            <span class="hidden sm:inline">Pengaturan</span>
+          </button>
+
+          <!-- Download PDF Button -->
+          <button id="exportPdfBtn" 
+                  title="Unduh Laporan PDF Portofolio"
+                  class="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-800/60 hover:bg-slate-700/80 border border-slate-700 text-slate-300 text-xs flex items-center gap-1.5 transition-all">
+            <i class="fa-solid fa-file-pdf text-red-400"></i>
+            <span class="hidden sm:inline">Unduh PDF</span>
+          </button>
+
+          <!-- Google Sign-in / User Profile Capsule -->
+          <div id="googleAuthHeaderContainer" class="flex items-center">
+            <!-- Tombol Masuk Google jika belum login -->
+            <button id="googleSignInBtn" onclick="FinVibeApp.handleGoogleLogin()" 
+                    class="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 sm:py-2 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-semibold shadow-md transition-all active:scale-95 border border-slate-200">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+              </svg>
+              <span class="hidden sm:inline">Masuk Google</span>
+              <span class="sm:hidden">Masuk</span>
+            </button>
+
+            <!-- User Profile Capsule jika sudah login -->
+            <div id="googleUserProfileCapsule" class="hidden items-center gap-2 pl-1 pr-2 py-1 rounded-xl bg-slate-800/80 border border-slate-700/80">
+              <img id="navUserAvatar" src="" alt="Avatar" class="w-6 h-6 rounded-full object-cover border border-sky-400">
+              <span id="navUserName" class="hidden md:inline text-xs font-semibold text-slate-200 truncate max-w-[100px]">Pengguna</span>
+              <button onclick="FinVibeApp.handleGoogleLogout()" title="Keluar dari Akun Google" class="text-slate-400 hover:text-red-400 p-1 text-xs">
+                <i class="fa-solid fa-arrow-right-from-bracket"></i>
+              </button>
+            </div>
+          </div>
+
+          <!-- New Transaction Button (Desktop) -->
+          <button onclick="FinVibeApp.openTransactionModal()" 
+                  class="hidden sm:flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white text-xs font-bold shadow-lg shadow-sky-500/25 active:scale-95 transition-all">
+            <i class="fa-solid fa-plus"></i>
+            <span>Transaksi Baru</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Layout -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8">
+
+    <!-- Google Cloud Sync Banner (Ditampilkan saat belum login Google) -->
+    <div id="googleAuthPromoBanner" class="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-sky-950/40 to-slate-900 border border-sky-500/30 shadow-xl relative overflow-hidden">
+      <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div class="flex items-start gap-3.5">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500 to-sky-500 flex items-center justify-center text-white text-lg shrink-0 shadow-lg shadow-sky-500/20">
+            <i class="fa-solid fa-cloud-arrow-up"></i>
+          </div>
+          <div>
+            <h3 class="text-sm sm:text-base font-bold text-slate-100 flex items-center gap-2">
+              <span>Database Google Sheets & Drive Pribadi</span>
+              <span class="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">100% Serverless</span>
+            </h3>
+            <p class="text-xs text-slate-400 mt-1 leading-relaxed max-w-2xl">
+              Masuk dengan akun Google Anda untuk menyimpan transaksi, portofolio cicilan, dan foto bukti pembayaran di Google Sheets & Drive pribadi Anda. BigBoz hanya mengakses file yang dibuat oleh aplikasi ini (<code class="text-sky-300 text-[11px]">drive.file</code>).
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2.5 w-full sm:w-auto shrink-0">
+          <button onclick="FinVibeApp.handleGoogleLogin()" 
+                  class="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-900 text-xs font-bold shadow-lg transition-all active:scale-95">
+            <svg class="w-4 h-4" viewBox="0 0 24 24">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+            </svg>
+            <span>Masuk dengan Google</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- SECTION B: DASHBOARD RINGKASAN (HERO CARDS) -->
+    <!-- ========================================== -->
+    <section id="section-summary" class="space-y-4">
+      
+      <!-- Greeting & Overview Header -->
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <div>
+          <h2 class="text-xl sm:text-2xl font-extrabold text-slate-100 tracking-tight">Ringkasan Keuangan Anda</h2>
+          <p class="text-xs sm:text-sm text-slate-400">Pantau arus kas, kewajiban cicilan, dan pertumbuhan tabungan Anda bulan ini.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs px-3 py-1 rounded-lg bg-slate-800/80 border border-slate-700 text-slate-300 flex items-center gap-1.5">
+            <i class="fa-regular fa-calendar text-sky-400"></i>
+            <span id="currentPeriodLabel">Bulan Berjalan</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- Hero Grid Cards (2x2 on Mobile, 5 cards on Desktop) -->
+      <div class="grid grid-cols-2 lg:grid-cols-5 gap-3.5 sm:gap-4">
+        
+        <!-- Card 1: Saldo Saat Ini -->
+        <div class="col-span-2 sm:col-span-1 glass-card p-4 sm:p-5 relative overflow-hidden">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-slate-400">Saldo Kas Bersih</span>
+            <div class="w-7 h-7 rounded-lg bg-sky-500/10 text-sky-400 flex items-center justify-center text-xs">
+              <i class="fa-solid fa-wallet"></i>
+            </div>
+          </div>
+          <div id="statCurrentBalance" class="text-2xl lg:text-3xl font-bold font-mono-num text-sky-400">
+            Rp 0
+          </div>
+          <div class="flex items-center gap-1.5 mt-2 text-[11px] text-slate-400">
+            <i class="fa-solid fa-scale-balanced text-sky-400"></i>
+            <span>Pemasukan - Pengeluaran</span>
+          </div>
+        </div>
+
+        <!-- Card 2: Pemasukan Bulan Ini -->
+        <div class="glass-card p-4 sm:p-5 relative overflow-hidden">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-slate-400">Pemasukan</span>
+            <div class="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center text-xs">
+              <i class="fa-solid fa-arrow-trend-up"></i>
+            </div>
+          </div>
+          <div id="statTotalIncome" class="text-lg sm:text-xl font-bold font-mono-num text-emerald-400">
+            Rp 0
+          </div>
+          <div class="flex items-center gap-1 mt-2 text-[11px] text-emerald-500/90 font-medium">
+            <i class="fa-solid fa-circle-check text-[10px]"></i>
+            <span>Arus Kas Masuk</span>
+          </div>
+        </div>
+
+        <!-- Card 3: Pengeluaran Bulan Ini -->
+        <div class="glass-card p-4 sm:p-5 relative overflow-hidden">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-slate-400">Pengeluaran</span>
+            <div class="w-7 h-7 rounded-lg bg-red-500/10 text-red-400 flex items-center justify-center text-xs">
+              <i class="fa-solid fa-arrow-trend-down"></i>
+            </div>
+          </div>
+          <div id="statTotalExpense" class="text-lg sm:text-xl font-bold font-mono-num text-red-400">
+            Rp 0
+          </div>
+          <div class="flex items-center gap-1 mt-2 text-[11px] text-red-400/90 font-medium">
+            <i class="fa-solid fa-receipt text-[10px]"></i>
+            <span>Kebutuhan & Gaya Hidup</span>
+          </div>
+        </div>
+
+        <!-- Card 4: Burn Rate Harian -->
+        <div class="glass-card p-4 sm:p-5 relative overflow-hidden">
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-slate-400">Burn Rate Harian</span>
+            <div class="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center text-xs">
+              <i class="fa-solid fa-fire-flame-curved"></i>
+            </div>
+          </div>
+          <div id="statBurnRate" class="text-lg sm:text-xl font-bold font-mono-num text-amber-400">
+            Rp 0 / hr
+          </div>
+          <div class="flex items-center gap-1 mt-2 text-[11px] text-slate-400">
+            <i class="fa-solid fa-clock-rotate-left text-[10px]"></i>
+            <span>Rata-rata Harian</span>
+          </div>
+        </div>
+
+        <!-- Card 5 (BARU): Total Cicilan Aktif Bulan Ini (Warna Violet) -->
+        <div class="glass-card p-4 sm:p-5 relative overflow-hidden border-violet-500/30 bg-violet-950/20">
+          <div class="absolute -right-4 -bottom-4 w-20 h-20 bg-violet-600/10 rounded-full blur-xl pointer-events-none"></div>
+          <div class="flex items-center justify-between mb-2">
+            <span class="text-xs font-semibold text-violet-300">Cicilan Bulan Ini</span>
+            <div class="w-7 h-7 rounded-lg bg-violet-500/20 text-violet-300 flex items-center justify-center text-xs border border-violet-500/30">
+              <i class="fa-solid fa-hand-holding-dollar"></i>
+            </div>
+          </div>
+          <div id="statTotalDebtMonthly" class="text-lg sm:text-xl font-bold font-mono-num text-violet-300">
+            Rp 0
+          </div>
+          <div class="flex items-center justify-between mt-2 text-[11px]">
+            <span id="statActiveDebtCount" class="text-violet-400 font-semibold">0 Cicilan Aktif</span>
+            <button onclick="FinVibeApp.switchTab('debt')" class="text-violet-300 hover:underline">Kelola &rarr;</button>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Target Tabungan Bulanan Progress Bar Banner -->
+      <div class="glass-card p-4 sm:p-5 border border-slate-700/60">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+          <div class="flex items-center gap-2">
+            <div class="p-2 rounded-lg bg-sky-500/10 text-sky-400 text-sm">
+              <i class="fa-solid fa-bullseye"></i>
+            </div>
+            <div>
+              <h4 class="text-sm font-bold text-slate-100">Target Tabungan & Akumulasi Bulanan</h4>
+              <p class="text-xs text-slate-400">Target bulan ini: <span id="statSavingsTarget" class="font-mono-num font-semibold text-slate-200">Rp 0</span></p>
+            </div>
+          </div>
+          <div class="text-right">
+            <span id="statSavingsPercent" class="text-lg font-bold font-mono-num text-sky-400">0%</span>
+            <span class="text-xs text-slate-400 ml-1">tercapai</span>
+          </div>
+        </div>
+        <div class="w-full h-3 bg-slate-800 rounded-full overflow-hidden p-0.5">
+          <div id="statSavingsBar" class="h-full rounded-full bg-gradient-to-r from-sky-500 to-emerald-400 transition-all duration-700" style="width: 0%"></div>
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- SECTION C & D: VISUALISASI & ANALISIS DATA -->
+    <!-- ========================================== -->
+    <section id="section-charts" class="space-y-6">
+      
+      <div>
+        <h2 class="text-xl sm:text-2xl font-extrabold text-slate-100 tracking-tight">Visualisasi & Analisis Grafik</h2>
+        <p class="text-xs sm:text-sm text-slate-400">Eksplorasi pola arus kas mingguan, sebaran kategori belanja, dan perbandingan performa keuangan.</p>
+      </div>
+
+      <!-- Row 1: Line Chart & Donut Chart -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Line Chart: Tren Pemasukan vs Pengeluaran -->
+        <div class="lg:col-span-7 glass-card p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-base font-bold text-slate-100">Tren Pemasukan vs Pengeluaran</h3>
+              <p class="text-xs text-slate-400">Aktivitas arus kas 7 hari terakhir</p>
+            </div>
+            <div class="flex items-center gap-2 text-xs">
+              <span class="flex items-center gap-1.5 text-emerald-400"><span class="w-2 h-2 rounded-full bg-emerald-400"></span> Masuk</span>
+              <span class="flex items-center gap-1.5 text-red-400"><span class="w-2 h-2 rounded-full bg-red-400"></span> Keluar</span>
+            </div>
+          </div>
+          <div class="h-64 sm:h-72 w-full relative">
+            <canvas id="trendLineChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Donut Chart: Distribusi Pengeluaran per Kategori -->
+        <div class="lg:col-span-5 glass-card p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-base font-bold text-slate-100">Distribusi Kategori</h3>
+              <p class="text-xs text-slate-400">Sebaran alokasi belanja bulan ini</p>
+            </div>
+            <i class="fa-solid fa-chart-pie text-slate-400 text-sm"></i>
+          </div>
+          <div class="h-64 sm:h-72 w-full relative flex items-center justify-center">
+            <canvas id="categoryDonutChart"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Row 2: Data-Analyst View (Bulan Ini vs Lalu & Pola Hari) -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Bar Chart: Bulan Ini vs Bulan Lalu -->
+        <div class="lg:col-span-6 glass-card p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-base font-bold text-slate-100">Bulan Ini vs Bulan Lalu</h3>
+              <p class="text-xs text-slate-400">Evaluasi komparasi pemasukan, pengeluaran & saldo</p>
+            </div>
+            <span class="text-xs px-2.5 py-1 rounded-md bg-slate-800 text-slate-300 font-mono-num">
+              Data Analyst View
+            </span>
+          </div>
+          <div class="h-60 sm:h-64 w-full relative">
+            <canvas id="comparisonBarChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Bar Chart: Pola Pengeluaran per Hari dalam Seminggu -->
+        <div class="lg:col-span-6 glass-card p-5">
+          <div class="flex items-center justify-between mb-4">
+            <div>
+              <h3 class="text-base font-bold text-slate-100">Pola Hari dalam Seminggu</h3>
+              <p class="text-xs text-slate-400">Deteksi hari yang memiliki pengeluaran paling tinggi</p>
+            </div>
+            <span id="mostWastefulDayBadge" class="text-xs font-semibold px-2.5 py-1 rounded-full badge-crimson">
+              Hari Terboros
+            </span>
+          </div>
+          <div class="h-60 sm:h-64 w-full relative">
+            <canvas id="dayPatternBarChart"></canvas>
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- SECTION E: MANAJEMEN CICILAN & UTANG (NEW) -->
+    <!-- ========================================== -->
+    <section id="section-debt" class="space-y-6">
+      
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="p-2 rounded-xl bg-violet-500/10 text-violet-400 text-base border border-violet-500/20">
+              <i class="fa-solid fa-hand-holding-dollar"></i>
+            </span>
+            <h2 class="text-xl sm:text-2xl font-extrabold text-slate-100 tracking-tight">Manajemen Cicilan & Utang</h2>
+          </div>
+          <p class="text-xs sm:text-sm text-slate-400 mt-1">Pantau cicilan KPR, motor, mobil, dan kartu kredit Anda secara bertanggung jawab.</p>
+        </div>
+        <button onclick="FinVibeApp.openDebtModal()" 
+                class="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 active:scale-95 text-white text-xs font-bold shadow-lg shadow-violet-600/30 transition-all">
+          <i class="fa-solid fa-plus"></i> Tambah Cicilan
+        </button>
+      </div>
+
+      <!-- Debt-to-Income (DTI) Ratio Overview Card -->
+      <div class="glass-card p-5 border border-violet-500/30 relative overflow-hidden bg-gradient-to-r from-violet-950/20 via-slate-900/60 to-slate-900/40">
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-5 items-center">
+          
+          <div class="md:col-span-5 space-y-1">
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold text-violet-400 uppercase tracking-wider">Debt-to-Income (DTI) Ratio</span>
+              <span id="dtiStatusBadge" class="px-2.5 py-0.5 rounded-full text-xs font-bold badge-emerald">Sehat</span>
+            </div>
+            <div class="flex items-baseline gap-2">
+              <span id="dtiRatioValue" class="text-3xl sm:text-4xl font-extrabold font-mono-num text-slate-100">0%</span>
+              <span class="text-xs text-slate-400">dari total pemasukan bulanan</span>
+            </div>
+            <p id="dtiDescription" class="text-xs text-slate-300 leading-relaxed pt-1">
+              Beban cicilan aman (&lt;30%). Kapasitas tabungan & investasi Anda sangat baik.
+            </p>
+          </div>
+
+          <div class="md:col-span-7 space-y-3">
+            <div class="w-full h-3 bg-slate-800 rounded-full overflow-hidden p-0.5">
+              <div id="dtiProgressBar" class="h-full rounded-full bg-emerald-500 transition-all duration-700" style="width: 25%"></div>
+            </div>
+            <!-- DTI Benchmark Scale -->
+            <div class="grid grid-cols-3 text-[11px] text-center gap-2">
+              <div class="p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+                <p class="font-bold">&lt; 30%</p>
+                <p class="text-[10px] text-slate-400">Zona Sehat</p>
+              </div>
+              <div class="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-400">
+                <p class="font-bold">30% – 40%</p>
+                <p class="text-[10px] text-slate-400">Waspada</p>
+              </div>
+              <div class="p-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400">
+                <p class="font-bold">&gt; 40%</p>
+                <p class="text-[10px] text-slate-400">Zona Berisiko</p>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Debt Cards Grid -->
+      <div id="debtCardsContainer" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <!-- Rendered by FinVibeApp.renderDebtSection -->
+      </div>
+
+      <!-- Accelerated Payoff Simulator (Simulasi Pelunasan Dipercepat) -->
+      <div class="glass-card p-5 border border-slate-700/60 space-y-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-2">
+            <div class="p-2 rounded-lg bg-violet-500/10 text-violet-400 text-sm">
+              <i class="fa-solid fa-calculator"></i>
+            </div>
+            <div>
+              <h3 class="text-base font-bold text-slate-100">Simulasi Pelunasan Dipercepat</h3>
+              <p class="text-xs text-slate-400">Hitung seberapa cepat Anda bebas utang & berapa bunga yang bisa dihemat dengan alokasi ekstra.</p>
+            </div>
+          </div>
+          <span class="text-xs px-2.5 py-1 rounded-md bg-violet-500/10 text-violet-400 border border-violet-500/30">
+            Fitur Cerdas
+          </span>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Pilih Cicilan Target</label>
+            <select id="simDebtSelect" class="finvibe-input text-xs"></select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1.5">Tambahan Bayar Ekstra per Bulan (Rp)</label>
+            <input type="number" id="simExtraPayment" value="500000" step="50000" class="finvibe-input font-mono-num text-xs" placeholder="Contoh: 500000">
+          </div>
+        </div>
+
+        <!-- Simulation Result Box -->
+        <div id="simResultBox" class="p-4 rounded-xl bg-slate-900/60 border border-slate-800">
+          <!-- Dynamic output -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- SECTION F: PUSAT EDUKASI KEUANGAN (NEW)    -->
+    <!-- ========================================== -->
+    <section id="section-education" class="space-y-6">
+      
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="p-2 rounded-xl bg-sky-500/10 text-sky-400 text-base border border-sky-500/20">
+            <i class="fa-solid fa-graduation-cap"></i>
+          </span>
+          <h2 class="text-xl sm:text-2xl font-extrabold text-slate-100 tracking-tight">Pusat Edukasi & Literasi Keuangan</h2>
+        </div>
+        <p class="text-xs sm:text-sm text-slate-400 mt-1">Belajar membangun kebiasaan finansial yang tangguh, bukan sekadar mencatat transaksi.</p>
+      </div>
+
+      <!-- Skor Kesehatan Keuangan (Financial Health Score) -->
+      <div class="glass-card p-5 sm:p-6 border border-sky-500/30 relative overflow-hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+          
+          <!-- Circular Gauge Left Column -->
+          <div class="lg:col-span-5 flex flex-col items-center justify-center text-center p-3">
+            <div class="relative w-44 h-44 flex items-center justify-center">
+              <svg class="w-full h-full gauge-svg transform -rotate-90" viewBox="0 0 120 120">
+                <!-- Track -->
+                <circle cx="60" cy="60" r="52" fill="none" stroke="currentColor" stroke-width="10" class="text-slate-800/80" />
+                <!-- Progress Circle (Circumference ~326.7) -->
+                <circle id="gaugeCircleProgress" cx="60" cy="60" r="52" fill="none" stroke="#10B981" stroke-width="10" 
+                        stroke-dasharray="326.7" stroke-dashoffset="65" stroke-linecap="round" />
+              </svg>
+              <!-- Center Text -->
+              <div class="absolute inset-0 flex flex-col items-center justify-center">
+                <span id="healthScoreValue" class="text-4xl font-extrabold font-mono-num text-slate-100 tracking-tight">85</span>
+                <span class="text-[11px] text-slate-400 uppercase tracking-widest mt-0.5">dari 100</span>
+              </div>
+            </div>
+
+            <div class="mt-3">
+              <div id="healthScoreGrade" class="text-lg font-bold badge-emerald px-4 py-1 rounded-full inline-block">
+                Sangat Sehat & Prima
+              </div>
+              <p id="healthScoreAdvice" class="text-xs text-slate-300 mt-2 max-w-sm leading-relaxed">
+                Struktur tabungan dan rasio beban utang Anda saat ini berada dalam kondisi ideal.
+              </p>
+            </div>
+          </div>
+
+          <!-- Breakdown Factors Right Column -->
+          <div class="lg:col-span-7 space-y-4">
+            <div>
+              <h4 class="text-sm font-bold text-slate-100">Faktor Penentu Skor Kesehatan Anda:</h4>
+              <p class="text-xs text-slate-400">Algoritma komposit berbasis rasio tabungan, utang, dana darurat, dan konsistensi.</p>
+            </div>
+
+            <div class="space-y-3">
+              <!-- Factor 1: Savings Rate -->
+              <div class="space-y-1">
+                <div class="flex justify-between text-xs">
+                  <span class="text-slate-300">Rasio Tabungan (Savings Rate)</span>
+                  <span id="scoreBarSavingsLabel" class="font-mono-num font-semibold text-slate-300">28/35 pt</span>
+                </div>
+                <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div id="scoreBarSavings" class="h-full rounded-full bg-emerald-500 transition-all duration-700" style="width: 80%"></div>
+                </div>
+              </div>
+
+              <!-- Factor 2: Debt-to-Income (DTI) -->
+              <div class="space-y-1">
+                <div class="flex justify-between text-xs">
+                  <span class="text-slate-300">Beban Cicilan (DTI Ratio)</span>
+                  <span id="scoreBarDTILabel" class="font-mono-num font-semibold text-slate-300">25/30 pt</span>
+                </div>
+                <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div id="scoreBarDTI" class="h-full rounded-full bg-sky-500 transition-all duration-700" style="width: 83%"></div>
+                </div>
+              </div>
+
+              <!-- Factor 3: Emergency Fund -->
+              <div class="space-y-1">
+                <div class="flex justify-between text-xs">
+                  <span class="text-slate-300">Ketahanan Dana Darurat</span>
+                  <span id="scoreBarEmergencyLabel" class="font-mono-num font-semibold text-slate-300">18/20 pt</span>
+                </div>
+                <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div id="scoreBarEmergency" class="h-full rounded-full bg-indigo-500 transition-all duration-700" style="width: 90%"></div>
+                </div>
+              </div>
+
+              <!-- Factor 4: Consistency -->
+              <div class="space-y-1">
+                <div class="flex justify-between text-xs">
+                  <span class="text-slate-300">Konsistensi & Kedisiplinan Mencatat</span>
+                  <span id="scoreBarConsistencyLabel" class="font-mono-num font-semibold text-slate-300">15/15 pt</span>
+                </div>
+                <div class="w-full h-2 bg-slate-800 rounded-full overflow-hidden">
+                  <div id="scoreBarConsistency" class="h-full rounded-full bg-amber-500 transition-all duration-700" style="width: 100%"></div>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Kartu "Tahukah Kamu?" (Smart Dynamic Insights Berbasis Data Riil) -->
+      <div class="space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="text-base font-bold text-slate-100 flex items-center gap-2">
+            <i class="fa-solid fa-lightbulb text-amber-400"></i>
+            Tahukah Kamu? (Rekomendasi Cerdas BigBoz)
+          </h3>
+          <span class="text-xs text-slate-400">Dihasilkan dinamis dari pola belanja Anda</span>
+        </div>
+        <div id="dynamicInsightsContainer" class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          <!-- Rendered dynamically -->
+        </div>
+      </div>
+
+      <!-- Row: Aturan 50/30/20 & Kalkulator Dana Darurat -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Panduan Visual: Aturan 50/30/20 (Aktual vs Ideal) -->
+        <div class="lg:col-span-6 glass-card p-5 space-y-4">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-bold text-slate-100">Aturan 50 / 30 / 20: Realita vs Standar</h4>
+            <span class="text-xs px-2 py-0.5 rounded bg-sky-500/10 text-sky-400">Formula Klasik</span>
+          </div>
+          <p class="text-xs text-slate-400 leading-relaxed">
+            Perbandingan alokasi pemasukan Anda saat ini dibanding formula ideal: 50% Kebutuhan Pokok, 30% Keinginan, 20% Tabungan/Investasi.
+          </p>
+
+          <!-- Stacked Progress Bar Aktual -->
+          <div class="space-y-1.5">
+            <div class="flex justify-between text-xs text-slate-300 font-semibold">
+              <span>Alokasi Aktual Anda</span>
+            </div>
+            <div class="w-full h-6 bg-slate-800 rounded-xl overflow-hidden flex text-[10px] font-bold text-white leading-6 text-center">
+              <div id="ruleActualNeeds" class="bg-red-500 transition-all duration-700" style="width: 50%">50%</div>
+              <div id="ruleActualWants" class="bg-amber-500 transition-all duration-700" style="width: 25%">25%</div>
+              <div id="ruleActualSavings" class="bg-emerald-500 transition-all duration-700" style="width: 25%">25%</div>
+            </div>
+            <div class="grid grid-cols-3 text-[11px] gap-1 pt-1">
+              <div class="text-left text-red-400">
+                <span class="inline-block w-2 h-2 rounded-full bg-red-400 mr-1"></span>Needs
+                <p id="valActualNeeds" class="font-mono-num font-bold text-slate-200">Rp 0</p>
+              </div>
+              <div class="text-center text-amber-400">
+                <span class="inline-block w-2 h-2 rounded-full bg-amber-400 mr-1"></span>Wants
+                <p id="valActualWants" class="font-mono-num font-bold text-slate-200">Rp 0</p>
+              </div>
+              <div class="text-right text-emerald-400">
+                <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1"></span>Savings
+                <p id="valActualSavings" class="font-mono-num font-bold text-slate-200">Rp 0</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Ideal Standard Bar -->
+          <div class="space-y-1.5 pt-2 border-t border-slate-700/50">
+            <div class="flex justify-between text-xs text-slate-400">
+              <span>Standar Ideal (50% / 30% / 20%)</span>
+            </div>
+            <div class="w-full h-3 bg-slate-800 rounded-full overflow-hidden flex opacity-75">
+              <div class="bg-red-500/70" style="width: 50%"></div>
+              <div class="bg-amber-500/70" style="width: 30%"></div>
+              <div class="bg-emerald-500/70" style="width: 20%"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Kalkulator Dana Darurat -->
+        <div class="lg:col-span-6 glass-card p-5 space-y-4">
+          <div class="flex items-center justify-between">
+            <h4 class="text-sm font-bold text-slate-100">Kalkulator Kesiapan Dana Darurat</h4>
+            <span id="calcEmergencyPercent" class="text-xs font-bold font-mono-num text-emerald-400">0% Kesiapan</span>
+          </div>
+          
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] text-slate-400 mb-1">Dana Dimiliki Saat Ini (Rp)</label>
+              <input type="number" id="calcCurrEmergency" onchange="FinVibeApp.updateEmergencyFund(this.value)" 
+                     class="finvibe-input font-mono-num text-xs" placeholder="0">
+            </div>
+            <div>
+              <label class="block text-[11px] text-slate-400 mb-1">Target Ideal BigBoz</label>
+              <div id="calcTargetEmergency" class="finvibe-input font-mono-num text-xs bg-slate-800/60 font-bold text-sky-400">
+                Rp 0
+              </div>
+            </div>
+          </div>
+
+          <div class="w-full h-3 bg-slate-800 rounded-full overflow-hidden p-0.5">
+            <div id="calcEmergencyBar" class="h-full rounded-full bg-emerald-500 transition-all duration-700" style="width: 50%"></div>
+          </div>
+
+          <p id="calcEmergencyNote" class="text-xs text-slate-400 leading-relaxed">
+            Menghitung kesiapan dana darurat berdasarkan rata-rata pengeluaran bulanan Anda.
+          </p>
+        </div>
+
+      </div>
+
+      <!-- Kamus Istilah Keuangan Mini (Glossary) & Badges Gamifikasi -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        <!-- Kamus Mini Accordion -->
+        <div class="lg:col-span-7 glass-card p-5 space-y-3">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <h4 class="text-sm font-bold text-slate-100">Kamus Istilah Keuangan Awam</h4>
+              <p class="text-xs text-slate-400">Pahami konsep finansial tanpa istilah rumit</p>
+            </div>
+            <div class="relative w-44">
+              <input type="text" id="glossarySearchInput" placeholder="Cari istilah..." 
+                     class="finvibe-input text-xs py-1.5 pl-7 pr-2">
+              <i class="fa-solid fa-search absolute left-2.5 top-2.5 text-slate-400 text-xs"></i>
+            </div>
+          </div>
+          <div id="glossaryAccordion" class="space-y-2 max-h-80 overflow-y-auto pr-1">
+            <!-- Rendered by FinVibeApp.renderGlossary -->
+          </div>
+        </div>
+
+        <!-- Badges Gamifikasi Pencapaian Baik -->
+        <div class="lg:col-span-5 glass-card p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <div>
+              <h4 class="text-sm font-bold text-slate-100">Pencapaian Finansial</h4>
+              <p class="text-xs text-slate-400">Badges kebiasaan baik yang terbuka</p>
+            </div>
+            <i class="fa-solid fa-trophy text-amber-400 text-sm"></i>
+          </div>
+          <div id="badgesGridContainer" class="space-y-2.5 max-h-80 overflow-y-auto pr-1">
+            <!-- Rendered by FinVibeApp.renderBadges -->
+          </div>
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- ========================================== -->
+    <!-- SECTION G: RIWAYAT & DAFTAR TRANSAKSI      -->
+    <!-- ========================================== -->
+    <section id="section-history" class="space-y-4">
+      
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h2 class="text-xl sm:text-2xl font-extrabold text-slate-100 tracking-tight">Riwayat Transaksi</h2>
+          <p class="text-xs sm:text-sm text-slate-400">Kelola dan telusuri seluruh catatan pemasukan dan pengeluaran Anda.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span id="transactionCountBadge" class="text-xs px-3 py-1 rounded-full bg-slate-800 text-slate-300 font-semibold border border-slate-700">
+            0 Transaksi
+          </span>
+          <button onclick="FinVibeApp.openTransactionModal()" 
+                  class="sm:hidden px-3 py-1.5 rounded-xl bg-sky-600 text-white text-xs font-bold flex items-center gap-1">
+            <i class="fa-solid fa-plus"></i> Tambah
+          </button>
+        </div>
+      </div>
+
+      <!-- Filter & Search Toolbar -->
+      <div class="glass-card p-3.5 border border-slate-700/60 flex flex-col sm:flex-row items-center gap-3">
+        <!-- Search Input -->
+        <div class="relative w-full sm:flex-1">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-3 text-slate-400 text-xs"></i>
+          <input type="text" id="txSearchInput" placeholder="Cari transaksi atau catatan..." 
+                 class="finvibe-input pl-8 py-2 text-xs w-full">
+        </div>
+
+        <!-- Filter Type -->
+        <div class="w-full sm:w-40">
+          <select id="txFilterType" class="finvibe-input py-2 text-xs w-full">
+            <option value="all">Semua Tipe</option>
+            <option value="income">Hanya Pemasukan</option>
+            <option value="expense">Hanya Pengeluaran</option>
+          </select>
+        </div>
+
+        <!-- Filter Category -->
+        <div class="w-full sm:w-48">
+          <select id="txFilterCategory" class="finvibe-input py-2 text-xs w-full">
+            <option value="all">Semua Kategori</option>
+            <option value="Gaji">Gaji</option>
+            <option value="Freelance">Freelance</option>
+            <option value="Investasi">Investasi</option>
+            <option value="Cicilan">Cicilan</option>
+            <option value="Belanja & Groceries">Belanja & Groceries</option>
+            <option value="Makanan & Kuliner">Makanan & Kuliner</option>
+            <option value="Tagihan & Utilitas">Tagihan & Utilitas</option>
+            <option value="Transportasi">Transportasi</option>
+            <option value="Hiburan & Langganan">Hiburan & Langganan</option>
+            <option value="Lainnya">Lainnya</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Desktop Table View -->
+      <div class="hidden sm:block glass-card overflow-hidden border border-slate-700/60">
+        <table class="w-full text-left border-collapse">
+          <thead>
+            <tr class="border-b border-slate-700/80 bg-slate-900/40 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+              <th class="py-3 px-4">Tanggal</th>
+              <th class="py-3 px-4">Kategori</th>
+              <th class="py-3 px-4">Catatan / Keterangan</th>
+              <th class="py-3 px-4 text-right">Nominal</th>
+              <th class="py-3 px-4 text-right">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="transactionsTableBody" class="divide-y divide-slate-800/60">
+            <!-- Rendered by FinVibeApp.renderTransactionsList -->
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Mobile Vertical Cards View -->
+      <div id="transactionsMobileCards" class="sm:hidden space-y-2.5">
+        <!-- Rendered by FinVibeApp.renderTransactionsList -->
+      </div>
+
+    </section>
+
+  </main>
+
+  <!-- ========================================== -->
+  <!-- FLOATING ACTION BUTTON (FAB)               -->
+  <!-- ========================================== -->
+  <button onclick="FinVibeApp.openTransactionModal()" 
+          title="Tambah Transaksi Cepat"
+          class="fab-btn w-14 h-14 rounded-full bg-gradient-to-tr from-sky-500 via-blue-600 to-indigo-600 text-white flex items-center justify-center text-xl shadow-2xl active:scale-95">
+    <i class="fa-solid fa-plus"></i>
+  </button>
+
+  <!-- ========================================== -->
+  <!-- BOTTOM NAVIGATION BAR (MOBILE ONLY)       -->
+  <!-- ========================================== -->
+  <nav class="md:hidden fixed bottom-0 left-0 right-0 z-30 glass-nav border-t border-slate-800/80 px-2 py-1.5 flex items-center justify-around">
+    <button onclick="FinVibeApp.switchTab('summary')" data-tab="summary" class="mobile-nav-btn flex flex-col items-center py-1 px-2 text-sky-400">
+      <i class="fa-solid fa-chart-pie text-base"></i>
+      <span class="text-[10px] mt-1">Ringkasan</span>
+    </button>
+    <button onclick="FinVibeApp.switchTab('charts')" data-tab="charts" class="mobile-nav-btn flex flex-col items-center py-1 px-2 text-slate-400">
+      <i class="fa-solid fa-chart-line text-base"></i>
+      <span class="text-[10px] mt-1">Grafik</span>
+    </button>
+    <button onclick="FinVibeApp.switchTab('debt')" data-tab="debt" class="mobile-nav-btn flex flex-col items-center py-1 px-2 text-slate-400">
+      <i class="fa-solid fa-hand-holding-dollar text-base"></i>
+      <span class="text-[10px] mt-1">Cicilan</span>
+    </button>
+    <button onclick="FinVibeApp.switchTab('education')" data-tab="education" class="mobile-nav-btn flex flex-col items-center py-1 px-2 text-slate-400">
+      <i class="fa-solid fa-graduation-cap text-base"></i>
+      <span class="text-[10px] mt-1">Edukasi</span>
+    </button>
+    <button onclick="FinVibeApp.switchTab('history')" data-tab="history" class="mobile-nav-btn flex flex-col items-center py-1 px-2 text-slate-400">
+      <i class="fa-solid fa-list-check text-base"></i>
+      <span class="text-[10px] mt-1">Transaksi</span>
+    </button>
+  </nav>
+
+  <!-- ========================================== -->
+  <!-- MODAL: TAMBAH / EDIT TRANSAKSI (VOICE INCL)-->
+  <!-- ========================================== -->
+  <div id="transactionModal" class="hidden fixed inset-0 z-50 modal-backdrop items-center justify-center p-4">
+    <div class="glass-card modal-content-anim w-full max-w-md p-6 border border-slate-700/80 shadow-2xl relative">
+      
+      <!-- Close Button -->
+      <button onclick="FinVibeApp.closeTransactionModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-200 p-1">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <h3 id="txModalTitle" class="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
+        + Tambah Transaksi Baru
+      </h3>
+
+      <form id="transactionForm" class="space-y-4">
+        <input type="hidden" id="txEditId" value="">
+        <input type="hidden" id="txType" value="expense">
+
+        <!-- Type Toggle Switch (Pemasukan / Pengeluaran) -->
+        <div class="flex items-center gap-2 p-1 bg-slate-900/60 rounded-xl border border-slate-800">
+          <button type="button" id="txTypeExpenseBtn" onclick="FinVibeApp.updateTxTypeUI('expense')" 
+                  class="flex-1 py-2 rounded-lg bg-red-600 text-white text-xs font-bold transition-all">
+            <i class="fa-solid fa-arrow-trend-down mr-1"></i> Pengeluaran
+          </button>
+          <button type="button" id="txTypeIncomeBtn" onclick="FinVibeApp.updateTxTypeUI('income')" 
+                  class="flex-1 py-2 rounded-lg bg-slate-800 text-slate-400 text-xs font-semibold hover:text-slate-200 transition-all">
+            <i class="fa-solid fa-arrow-trend-up mr-1"></i> Pemasukan
+          </button>
+        </div>
+
+        <!-- Nominal (Rupiah, JetBrains Mono) -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Nominal (Rp)</label>
+          <div class="relative">
+            <span class="absolute left-3 top-2.5 text-sm font-bold font-mono text-slate-400">Rp</span>
+            <input type="number" id="txAmount" required min="100" step="100" 
+                   class="finvibe-input font-mono-num text-base font-bold pl-11" placeholder="50.000">
+          </div>
+        </div>
+
+        <!-- Dropdown Kategori -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Kategori</label>
+          <select id="txCategory" required class="finvibe-input text-xs"></select>
+        </div>
+
+        <!-- Tanggal -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Tanggal Transaksi</label>
+          <input type="date" id="txDate" required class="finvibe-input text-xs">
+        </div>
+
+        <!-- Catatan & Web Speech API Microphone -->
+        <div>
+          <div class="flex items-center justify-between mb-1">
+            <label class="text-xs font-semibold text-slate-300">Catatan / Keterangan</label>
+            <span class="text-[10px] text-sky-400">Dukungan Input Suara (id-ID)</span>
+          </div>
+          <div class="relative">
+            <textarea id="txNotes" rows="2" class="finvibe-input text-xs pr-12 resize-none" 
+                      placeholder="Contoh: Makan siang rendang atau klik mikrofon untuk bicara"></textarea>
+            
+            <!-- Voice Input Button -->
+            <button type="button" id="voiceMicBtn" onclick="FinVibeApp.triggerVoiceNote(this)" 
+                    title="Bicara untuk mengisi catatan & nominal secara otomatis (Web Speech API)"
+                    class="absolute right-2.5 bottom-2.5 w-8 h-8 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-400 flex items-center justify-center transition-all">
+              <i class="fa-solid fa-microphone text-xs"></i>
+            </button>
+          </div>
+          <p class="text-[10px] text-slate-500 mt-1">
+            💡 Tips Suara: Ucapkan misal <i>"Kopi susu 25 ribu"</i>, BigBoz akan mengisi catatan dan nominal secara otomatis!
+          </p>
+        </div>
+
+        <!-- Bukti Foto / Struk Transaksi (Opsional) -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+            <span><i class="fa-solid fa-camera text-sky-400 mr-1"></i> Foto Bukti / Struk (Opsional)</span>
+            <span class="text-[10px] text-slate-400">Google Drive Pribadi</span>
+          </label>
+          <div class="flex items-center gap-3">
+            <label class="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-dashed border-slate-700 hover:border-sky-500/60 bg-slate-900/60 hover:bg-slate-800/60 cursor-pointer text-xs text-slate-300 transition-all">
+              <i class="fa-solid fa-cloud-arrow-up text-sky-400 text-sm"></i>
+              <span id="txPhotoFileName" class="truncate max-w-[180px]">Pilih Foto Struk / Nota</span>
+              <input type="file" id="txReceiptPhoto" accept="image/*" class="hidden" onchange="FinVibeApp.handlePhotoSelect(event, 'tx')">
+            </label>
+            <div id="txPhotoPreviewContainer" class="hidden relative shrink-0">
+              <img id="txPhotoPreview" class="w-10 h-10 rounded-lg object-cover border border-sky-400/40 cursor-pointer" onclick="FinVibeApp.previewPhoto(this.src)" title="Klik untuk memperbesar">
+              <button type="button" onclick="FinVibeApp.clearSelectedPhoto('tx')" class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-[10px] shadow" title="Hapus foto">&times;</button>
+            </div>
+          </div>
+          <p class="text-[10px] text-slate-500 mt-1">Tersimpan aman di folder Google Drive "BigBoz-Bukti-Transaksi".</p>
+        </div>
+
+        <!-- Submit Buttons -->
+        <div class="flex items-center gap-2 pt-2">
+          <button type="button" onclick="FinVibeApp.closeTransactionModal()" 
+                  class="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-all">
+            Batal
+          </button>
+          <button type="submit" 
+                  class="flex-1 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-lg shadow-sky-600/30 transition-all">
+            Simpan Transaksi
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: TAMBAH / EDIT CICILAN (DEBT TRACKER)-->
+  <!-- ========================================== -->
+  <div id="debtModal" class="hidden fixed inset-0 z-50 modal-backdrop items-center justify-center p-4">
+    <div class="glass-card modal-content-anim w-full max-w-lg p-6 border border-slate-700/80 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+      
+      <!-- Close Button -->
+      <button onclick="FinVibeApp.closeDebtModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-200 p-1">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <h3 id="debtModalTitle" class="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
+        + Tambah Cicilan Baru
+      </h3>
+
+      <form id="debtForm" class="space-y-3.5">
+        <input type="hidden" id="debtEditId" value="">
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Nama Cicilan / Pinjaman</label>
+          <input type="text" id="debtName" required class="finvibe-input text-xs" placeholder="Misal: KPR BTN Syariah, Honda Vario">
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Jenis Pinjaman</label>
+            <select id="debtType" required class="finvibe-input text-xs">
+              <option value="house">🏠 Rumah / KPR</option>
+              <option value="motorcycle">🏍️ Motor</option>
+              <option value="car">🚗 Mobil</option>
+              <option value="credit_card">💳 Kartu Kredit</option>
+              <option value="other">📦 Lainnya</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Total Plafon Pinjaman (Rp)</label>
+            <input type="number" id="debtTotalAmount" class="finvibe-input font-mono-num text-xs" placeholder="Opsional (misal: 30000000)">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Cicilan per Bulan (Rp)</label>
+            <input type="number" id="debtMonthlyPayment" required min="1000" class="finvibe-input font-mono-num text-xs" placeholder="Contoh: 1500000">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Tgl Jatuh Tempo (Tiap Bulan)</label>
+            <input type="number" id="debtDueDay" required min="1" max="31" class="finvibe-input font-mono-num text-xs" placeholder="1 - 31">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Tenor Total (Bln)</label>
+            <input type="number" id="debtTotalTenor" required min="1" class="finvibe-input font-mono-num text-xs" placeholder="Contoh: 36">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Sisa Tenor (Bln)</label>
+            <input type="number" id="debtRemainingTenor" required min="0" class="finvibe-input font-mono-num text-xs" placeholder="Contoh: 14">
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Suku Bunga (%/thn)</label>
+            <input type="number" id="debtInterestRate" step="0.1" class="finvibe-input font-mono-num text-xs" placeholder="Opsional (misal: 7.5)">
+          </div>
+        </div>
+
+        <!-- Submit Buttons -->
+        <div class="flex items-center gap-2 pt-2">
+          <button type="button" onclick="FinVibeApp.closeDebtModal()" 
+                  class="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-all">
+            Batal
+          </button>
+          <button type="submit" 
+                  class="flex-1 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-lg shadow-violet-600/30 transition-all">
+            Simpan Cicilan
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: PEMBAYARAN CICILAN & BUKTI FOTO     -->
+  <!-- ========================================== -->
+  <div id="payDebtModal" class="hidden fixed inset-0 z-50 modal-backdrop items-center justify-center p-4">
+    <div class="glass-card modal-content-anim w-full max-w-md p-6 border border-slate-700/80 shadow-2xl relative">
+      
+      <!-- Close Button -->
+      <button onclick="FinVibeApp.closePayDebtModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-200 p-1">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <h3 class="text-lg font-bold text-slate-100 mb-3 flex items-center gap-2">
+        <span class="w-8 h-8 rounded-lg bg-violet-500/20 text-violet-400 flex items-center justify-center text-sm">
+          <i class="fa-solid fa-receipt"></i>
+        </span>
+        <span>Konfirmasi Bayar Cicilan</span>
+      </h3>
+
+      <form id="payDebtForm" onsubmit="FinVibeApp.handleConfirmPayDebt(event)" class="space-y-4">
+        <input type="hidden" id="payDebtId" value="">
+
+        <!-- Ringkasan Cicilan -->
+        <div class="p-3.5 rounded-xl bg-slate-900/70 border border-slate-800 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-slate-400">Nama Cicilan:</span>
+            <span id="payDebtName" class="text-xs font-bold text-slate-200 truncate max-w-[200px]">-</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs text-slate-400">Nominal Cicilan:</span>
+            <span id="payDebtAmountText" class="text-sm font-bold font-mono text-emerald-400">Rp 0</span>
+          </div>
+          <div class="flex items-center justify-between border-t border-slate-800 pt-2">
+            <span class="text-xs text-slate-400">Progres Tenor:</span>
+            <span id="payDebtTenorText" class="text-xs font-semibold text-violet-400">-</span>
+          </div>
+        </div>
+
+        <!-- Tanggal Pembayaran -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Tanggal Bayar</label>
+          <input type="date" id="payDebtDate" required class="finvibe-input text-xs">
+        </div>
+
+        <!-- Status Keterlambatan -->
+        <div class="flex items-center justify-between p-3 rounded-xl bg-slate-800/40 border border-slate-700/50">
+          <label for="payDebtIsLate" class="text-xs text-slate-300 cursor-pointer">
+            <span class="font-semibold block">Pembayaran Terlambat?</span>
+            <span class="text-[10px] text-slate-400">Tandai jika melewati tanggal jatuh tempo</span>
+          </label>
+          <input type="checkbox" id="payDebtIsLate" class="w-4 h-4 rounded text-violet-600 bg-slate-900 border-slate-700 focus:ring-violet-500 cursor-pointer">
+        </div>
+
+        <!-- Upload Foto Bukti Pembayaran (M-Banking / Struk ATM) -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+            <span><i class="fa-solid fa-camera text-violet-400 mr-1"></i> Unggah Bukti Transfer / Resi (Foto)</span>
+            <span class="text-[10px] text-slate-400">Google Drive Pribadi</span>
+          </label>
+          <div class="flex items-center gap-3">
+            <label class="flex-1 flex items-center justify-center gap-2 py-2 px-3 rounded-xl border border-dashed border-slate-700 hover:border-violet-500/60 bg-slate-900/60 hover:bg-slate-800/60 cursor-pointer text-xs text-slate-300 transition-all">
+              <i class="fa-solid fa-cloud-arrow-up text-violet-400 text-sm"></i>
+              <span id="debtPayPhotoFileName" class="truncate max-w-[180px]">Pilih Foto Resi / Screenshot</span>
+              <input type="file" id="debtPayPhoto" accept="image/*" class="hidden" onchange="FinVibeApp.handlePhotoSelect(event, 'debtPay')">
+            </label>
+            <div id="debtPayPhotoPreviewContainer" class="hidden relative shrink-0">
+              <img id="debtPayPhotoPreview" class="w-10 h-10 rounded-lg object-cover border border-violet-400/40 cursor-pointer" onclick="FinVibeApp.previewPhoto(this.src)" title="Klik untuk memperbesar">
+              <button type="button" onclick="FinVibeApp.clearSelectedPhoto('debtPay')" class="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center text-[10px] shadow" title="Hapus foto">&times;</button>
+            </div>
+          </div>
+          <p class="text-[10px] text-slate-500 mt-1">Foto otomatis disimpan ke folder Google Drive Anda ("BigBoz-Bukti-Transaksi").</p>
+        </div>
+
+        <!-- Submit & Batal -->
+        <div class="flex items-center gap-2 pt-2">
+          <button type="button" onclick="FinVibeApp.closePayDebtModal()" 
+                  class="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-all">
+            Batal
+          </button>
+          <button type="submit" id="btnConfirmPayDebt"
+                  class="flex-1 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-bold shadow-lg shadow-violet-600/30 transition-all flex items-center justify-center gap-2">
+            <i class="fa-solid fa-check"></i>
+            <span>Simpan Pembayaran</span>
+          </button>
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: PREVIEW FOTO BUKTI PEMBAYARAN       -->
+  <!-- ========================================== -->
+  <div id="photoPreviewModal" class="hidden fixed inset-0 z-50 modal-backdrop items-center justify-center p-4">
+    <div class="glass-card modal-content-anim w-full max-w-lg p-5 border border-slate-700/80 shadow-2xl relative flex flex-col items-center">
+      
+      <!-- Close Button -->
+      <button onclick="FinVibeApp.closePhotoPreviewModal()" class="absolute top-3.5 right-3.5 text-slate-400 hover:text-slate-200 p-1.5 rounded-lg bg-slate-800/80">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <h4 class="text-sm font-bold text-slate-200 mb-3 self-start flex items-center gap-2">
+        <i class="fa-solid fa-image text-sky-400"></i>
+        <span>Lampiran Bukti Transaksi / Struk</span>
+      </h4>
+
+      <div class="w-full max-h-[65vh] overflow-auto rounded-xl bg-slate-950/80 border border-slate-800 flex items-center justify-center p-2 mb-3">
+        <img id="photoPreviewImg" src="" alt="Bukti Transaksi" class="max-w-full max-h-[60vh] object-contain rounded-lg">
+      </div>
+
+      <div class="flex items-center gap-2 w-full">
+        <a id="photoPreviewDriveLink" href="#" target="_blank" 
+           class="flex-1 py-2 px-3 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 text-xs font-semibold flex items-center justify-center gap-2 border border-sky-500/30 transition-all">
+          <i class="fa-brands fa-google-drive"></i> Buka Asli di Google Drive
+        </a>
+        <button type="button" onclick="FinVibeApp.closePhotoPreviewModal()" 
+                class="py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition-all">
+          Tutup
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: PENGATURAN & BACKUP DATA           -->
+  <!-- ========================================== -->
+  <div id="settingsModal" class="hidden fixed inset-0 z-50 modal-backdrop items-center justify-center p-4">
+    <div class="glass-card modal-content-anim w-full max-w-md p-6 border border-slate-700/80 shadow-2xl relative max-h-[90vh] overflow-y-auto">
+      
+      <!-- Close Button -->
+      <button onclick="FinVibeApp.closeSettingsModal()" class="absolute top-4 right-4 text-slate-400 hover:text-slate-200 p-1">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+
+      <h3 class="text-lg font-bold text-slate-100 mb-4 flex items-center gap-2">
+        <i class="fa-solid fa-gear text-sky-400"></i> Pengaturan Akun & Sinkronisasi
+      </h3>
+
+      <form id="settingsForm" class="space-y-4">
+        
+        <!-- Pemasukan Bulanan Rata-Rata -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Pemasukan Bulanan Rata-Rata (Rp)</label>
+          <input type="number" id="settingMonthlyIncome" class="finvibe-input font-mono-num text-xs" placeholder="15000000">
+          <p class="text-[10px] text-slate-500 mt-1">Digunakan untuk patokan dasar rasio tabungan & rasio cicilan (DTI).</p>
+        </div>
+
+        <!-- Target Tabungan Bulanan -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Target Tabungan Bulanan (Rp)</label>
+          <input type="number" id="settingSavingsTarget" class="finvibe-input font-mono-num text-xs" placeholder="3500000">
+          <p class="text-[10px] text-slate-500 mt-1">Digunakan untuk menghitung progress bar di dashboard utama.</p>
+        </div>
+
+        <!-- Dana Darurat Saat Ini -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">Total Dana Darurat Saat Ini (Rp)</label>
+          <input type="number" id="settingEmergencyFund" class="finvibe-input font-mono-num text-xs" placeholder="18000000">
+          <p class="text-[10px] text-slate-500 mt-1">Digunakan untuk mengukur skor ketahanan & kalkulator dana darurat.</p>
+        </div>
+
+        <!-- Profil & Tema -->
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Profil Finansial</label>
+            <select id="settingProfileType" class="finvibe-input text-xs">
+              <option value="single">Lajang (Target 3-6x)</option>
+              <option value="married">Berkeluarga (Target 6x)</option>
+              <option value="freelancer">Freelancer (Target 9-12x)</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-300 mb-1">Tema Tampilan</label>
+            <select id="settingThemeSelect" class="finvibe-input text-xs">
+              <option value="dark">🌙 Dark Mode Sinematik</option>
+              <option value="light">☀️ Light Mode Bersih</option>
+            </select>
+          </div>
+        </div>
+
+        <button type="submit" class="w-full py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition-all shadow-md">
+          Simpan Pengaturan
+        </button>
+
+        <!-- Status Akun Google & Google Sheets Sync -->
+        <div class="p-3.5 rounded-xl bg-slate-900/60 border border-slate-700/60 space-y-3">
+          <div class="flex items-center justify-between">
+            <h4 class="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+              <i class="fa-brands fa-google text-red-400"></i> Akun Google & Database Sheets
+            </h4>
+            <span id="settingsGoogleStatusBadge" class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-700 text-slate-400 border border-slate-600 flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Belum Terhubung
+            </span>
+          </div>
+
+          <!-- User Profile Card (Saat Login) -->
+          <div id="settingsProfileConnectedCard" class="flex items-center gap-3 p-2.5 rounded-lg bg-slate-800/60 border border-slate-700/40">
+            <img id="googleAvatar" src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80" 
+                 alt="Google Avatar" class="w-10 h-10 rounded-full border border-sky-400/40 object-cover">
+            <div class="flex-1 min-w-0">
+              <p id="googleName" class="text-xs font-bold text-slate-100 truncate">Pengguna BigBoz</p>
+              <p id="googleEmail" class="text-[11px] text-slate-400 truncate">-</p>
+            </div>
+          </div>
+
+          <!-- Login CTA Card (Saat Belum Login) -->
+          <div id="settingsProfileDisconnectedCard" class="hidden p-3 rounded-lg bg-sky-500/10 border border-sky-500/20 text-center space-y-2">
+            <p class="text-xs text-sky-200">Hubungkan akun Google untuk sinkronisasi otomatis ke Google Drive & Sheets Anda.</p>
+            <button type="button" onclick="FinVibeApp.handleGoogleLogin()" 
+                    class="w-full py-2 rounded-lg bg-white hover:bg-slate-100 text-slate-900 text-xs font-bold transition-all shadow">
+              Masuk dengan Google
+            </button>
+          </div>
+
+          <!-- Spreadsheet & Folder Info -->
+          <div id="settingsSheetInfoBox" class="p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 space-y-1 text-[11px]">
+            <div class="flex items-center justify-between text-slate-400">
+              <span>File Database:</span>
+              <span id="settingsSheetName" class="text-slate-200 font-mono text-[10px] truncate max-w-[180px]">BigBoz-Database</span>
+            </div>
+            <div class="flex items-center justify-between text-slate-400">
+              <span>Folder Bukti Foto:</span>
+              <span class="text-slate-200 font-mono text-[10px]">BigBoz-Bukti-Transaksi</span>
+            </div>
+          </div>
+
+          <!-- Action Buttons: Buka di Sheets, Folder Bukti & Sinkronkan -->
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" onclick="FinVibeApp.openGoogleSheet()" 
+                    class="py-2 px-3 rounded-lg bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 text-xs font-semibold flex items-center justify-center gap-1.5 border border-emerald-500/30 transition-all">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i> Buka Spreadsheet
+            </button>
+            <button type="button" onclick="FinVibeApp.openDriveProofFolder()" 
+                    class="py-2 px-3 rounded-lg bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 text-xs font-semibold flex items-center justify-center gap-1.5 border border-violet-500/30 transition-all">
+              <i class="fa-brands fa-google-drive"></i> Folder Bukti
+            </button>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" onclick="FinVibeApp.syncGoogleSheets(true)" 
+                    class="py-2 px-3 rounded-lg bg-sky-600/20 hover:bg-sky-600/30 text-sky-300 text-xs font-semibold flex items-center justify-center gap-1.5 border border-sky-500/30 transition-all">
+              <i class="fa-solid fa-rotate"></i> Sinkronkan
+            </button>
+            <button type="button" onclick="FinVibeApp.handleGoogleLogout()" 
+                    id="settingsLogoutBtn"
+                    class="py-2 px-3 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-300 text-xs font-semibold flex items-center justify-center gap-1.5 border border-red-500/30 transition-all">
+              <i class="fa-solid fa-arrow-right-from-bracket"></i> Keluar Akun
+            </button>
+          </div>
+
+          <!-- Konfigurasi Client ID Google Cloud (Opsional) -->
+          <div class="pt-2 border-t border-slate-800 space-y-1.5">
+            <details class="text-[11px] text-slate-400 group">
+              <summary class="cursor-pointer font-semibold text-slate-300 hover:text-sky-400 transition-colors flex items-center justify-between">
+                <span>⚙️ Konfigurasi Google OAuth Client ID</span>
+                <i class="fa-solid fa-chevron-down text-[10px] group-open:rotate-180 transition-transform"></i>
+              </summary>
+              <div class="pt-2 space-y-2">
+                <input type="text" id="settingGoogleClientId" class="finvibe-input font-mono text-[11px] w-full" placeholder="712458...apps.googleusercontent.com">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-[10px] text-slate-500">OAuth 2.0 Web Client ID</span>
+                  <button type="button" onclick="FinVibeApp.saveCustomClientId()" class="px-2.5 py-1 rounded bg-sky-600 hover:bg-sky-500 text-white text-[11px] font-semibold">
+                    Simpan ID
+                  </button>
+                </div>
+                <p class="text-[10px] text-slate-500 leading-snug">
+                  Jika menjalankan di domain/port sendiri, buat Client ID di Google Cloud Console dengan Authorized JavaScript Origin sesuai URL Anda.
+                </p>
+              </div>
+            </details>
+          </div>
+
+          <!-- Transparansi Scope Izin -->
+          <div class="p-2.5 rounded-lg bg-slate-950/40 border border-slate-800 text-[10px] text-slate-400 space-y-1">
+            <span class="font-bold text-slate-300 block mb-0.5">Izin Minimal (Scopes):</span>
+            <div class="flex items-center gap-1.5 text-emerald-400">
+              <i class="fa-solid fa-check text-[9px]"></i>
+              <span><b>spreadsheets</b>: Baca/tulis transaksi & cicilan BigBoz.</span>
+            </div>
+            <div class="flex items-center gap-1.5 text-emerald-400">
+              <i class="fa-solid fa-check text-[9px]"></i>
+              <span><b>drive.file</b>: HANYA akses file/folder yang dibuat aplikasi BigBoz.</span>
+            </div>
+            <div class="flex items-center gap-1.5 text-emerald-400">
+              <i class="fa-solid fa-check text-[9px]"></i>
+              <span><b>profile & email</b>: Menampilkan nama & foto profil.</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Backup & Restore JSON (Cadangan Independen) -->
+        <div class="pt-3 border-t border-slate-700/60 space-y-3">
+          <div class="flex items-center justify-between">
+            <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider">Cadangan Independen (JSON)</h4>
+            <span class="text-[10px] text-slate-400">Offline & Pribadi</span>
+          </div>
+          
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" onclick="FinVibeApp.exportJSON()" 
+                    class="py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors">
+              <i class="fa-solid fa-download text-sky-400"></i> Ekspor JSON
+            </button>
+            <label class="py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer transition-colors">
+              <i class="fa-solid fa-upload text-emerald-400"></i> Impor JSON
+              <input type="file" accept=".json" onchange="FinVibeApp.importJSON(event)" class="hidden">
+            </label>
+          </div>
+
+          <!-- Reset / Demo Actions -->
+          <div class="grid grid-cols-2 gap-2 pt-1">
+            <button type="button" onclick="FinVibeApp.loadDemoData()" 
+                    class="py-2 px-3 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-medium transition-colors">
+              <i class="fa-solid fa-rotate-left mr-1"></i> Muat Data Demo
+            </button>
+            <button type="button" onclick="FinVibeApp.clearAllData()" 
+                    class="py-2 px-3 rounded-lg bg-red-950/40 hover:bg-red-900/60 border border-red-500/20 text-red-400 text-[11px] font-medium transition-colors">
+              <i class="fa-solid fa-trash-can mr-1"></i> Bersihkan Data
+            </button>
+          </div>
+        </div>
+
+        <!-- Privacy Assurance -->
+        <div class="p-3 rounded-xl bg-slate-900/60 border border-slate-800 text-[11px] text-slate-400 leading-relaxed">
+          <div class="flex items-center gap-1.5 text-emerald-400 font-semibold mb-1">
+            <i class="fa-solid fa-shield-halved"></i> Privasi & Keamanan Terjaga
+          </div>
+          Seluruh catatan finansial dan cicilan Anda disimpan secara aman di perangkat lokal (`LocalStorage`) dan cadangan cloud privat di Google Sheets akun Anda sendiri.
+        </div>
+
+      </form>
+    </div>
+  </div>
+
+  <!-- Google Sheets Syncing Overlay -->
+  <div id="syncLoadingOverlay" class="hidden fixed inset-0 z-50 modal-backdrop items-center justify-center p-4">
+    <div class="glass-card p-6 border border-slate-700/80 flex flex-col items-center max-w-xs text-center shadow-2xl modal-content-anim">
+      <div class="w-12 h-12 rounded-full border-3 border-emerald-500 border-t-transparent animate-spin mb-3"></div>
+      <h4 class="text-sm font-bold text-slate-100 mb-1">Menyinkronkan ke Google Sheets</h4>
+      <p class="text-xs text-slate-400 leading-relaxed">Memperbarui lembar transaksi dan portofolio cicilan BigBoz...</p>
+    </div>
+  </div>
+
+  <!-- Application Scripts -->
+  <script src="js/demo-data.js"></script>
+  <script src="js/googleAuth.js"></script>
+  <script src="js/sheetsApi.js"></script>
+  <script src="js/debt.js"></script>
+  <script src="js/education.js"></script>
+  <script src="js/speech.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/export-pdf.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
