@@ -255,8 +255,7 @@ const SheetsApi = {
 
     const createPayload = {
       properties: {
-        title: filename,
-        locale: 'id'
+        title: filename
       },
       sheets: [
         { properties: { title: 'Transaksi', gridProperties: { frozenRowCount: 1 } } },
