@@ -717,36 +717,75 @@
           </div>
         </div>
 
-        <!-- Kalkulator Dana Darurat -->
+        <!-- Dompet Tabungan -->
         <div class="lg:col-span-6 glass-card p-5 space-y-4">
           <div class="flex items-center justify-between">
-            <h4 class="text-sm font-bold text-slate-100">Kalkulator Kesiapan Dana Darurat</h4>
-            <span id="calcEmergencyPercent" class="text-xs font-bold font-mono-num text-emerald-400">0% Kesiapan</span>
-          </div>
-          
-          <div class="grid grid-cols-2 gap-3">
             <div>
-              <label class="block text-[11px] text-slate-400 mb-1">Dana Dimiliki Saat Ini (Rp)</label>
-              <input type="number" id="calcCurrEmergency" onchange="FinVibeApp.updateEmergencyFund(this.value)" 
-                     class="finvibe-input font-mono-num text-xs" placeholder="0">
+              <h4 class="text-sm font-bold text-slate-100">🏦 Dompet Tabungan</h4>
+              <p class="text-xs text-slate-400 mt-0.5">Saldo dari semua setoran Tabungan & Investasi</p>
             </div>
-            <div>
-              <label class="block text-[11px] text-slate-400 mb-1">Target Ideal BigBoz</label>
-              <div id="calcTargetEmergency" class="finvibe-input font-mono-num text-xs bg-slate-800/60 font-bold text-sky-400">
-                Rp 0
-              </div>
-            </div>
+            <span id="savingsWalletBadge" class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold">Rp 0</span>
           </div>
 
-          <div class="w-full h-3 bg-slate-800 rounded-full overflow-hidden p-0.5">
-            <div id="calcEmergencyBar" class="h-full rounded-full bg-emerald-500 transition-all duration-700" style="width: 50%"></div>
+          <!-- Saldo Besar -->
+          <div class="text-center py-3 bg-slate-800/50 rounded-xl">
+            <p class="text-[11px] text-slate-400 mb-1">Saldo Tabungan Saat Ini</p>
+            <p id="savingsWalletBalance" class="text-2xl font-bold font-mono-num text-emerald-400">Rp 0</p>
+            <p id="savingsWalletSubtext" class="text-[10px] text-slate-500 mt-1">Belum ada tabungan bulan ini</p>
           </div>
 
-          <p id="calcEmergencyNote" class="text-xs text-slate-400 leading-relaxed">
-            Menghitung kesiapan dana darurat berdasarkan rata-rata pengeluaran bulanan Anda.
-          </p>
+          <!-- Tombol Aksi -->
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="FinVibeApp.openSavingsModal('deposit')"
+              class="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 text-white text-xs font-bold transition-colors">
+              <i class="fa-solid fa-plus"></i> Tambah Tabungan
+            </button>
+            <button onclick="FinVibeApp.openSavingsModal('withdraw')"
+              class="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-xs font-bold transition-colors">
+              <i class="fa-solid fa-minus"></i> Gunakan Tabungan
+            </button>
+          </div>
+
+          <!-- Riwayat Singkat Tabungan -->
+          <div id="savingsHistoryList" class="space-y-1.5 max-h-28 overflow-y-auto text-xs">
+            <p class="text-slate-500 text-center text-[11px] py-2">Belum ada riwayat tabungan</p>
+          </div>
         </div>
 
+      </div>
+
+      <!-- Budget Advisor / Peringatan Gajian -->
+      <div id="budgetAdvisorCard" class="glass-card p-5 space-y-4 border border-amber-500/20 hidden">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <div class="flex items-center gap-2">
+            <span class="text-xl">⚠️</span>
+            <div>
+              <h4 class="text-sm font-bold text-amber-300">Peringatan: Anggaran Tipis Sebelum Gajian!</h4>
+              <p id="budgetAdvisorSubtitle" class="text-xs text-slate-400 mt-0.5">Sisa waktu menuju gajian masih panjang</p>
+            </div>
+          </div>
+          <span id="budgetAdvisorDaysLeft" class="text-xs font-bold px-3 py-1 rounded-full bg-amber-500/20 text-amber-300"></span>
+        </div>
+
+        <div class="grid grid-cols-3 gap-3 text-center">
+          <div class="bg-slate-800/60 rounded-xl p-3">
+            <p class="text-[10px] text-slate-400 mb-1">Pengeluaran/Hari</p>
+            <p id="advisorDailyBurn" class="text-sm font-bold font-mono-num text-red-400">Rp 0</p>
+          </div>
+          <div class="bg-slate-800/60 rounded-xl p-3">
+            <p class="text-[10px] text-slate-400 mb-1">Hari ke Gajian</p>
+            <p id="advisorDaysLeft" class="text-sm font-bold font-mono-num text-amber-400">0 hari</p>
+          </div>
+          <div class="bg-slate-800/60 rounded-xl p-3">
+            <p class="text-[10px] text-slate-400 mb-1">Estimasi Sisa Habis</p>
+            <p id="advisorProjectedLeft" class="text-sm font-bold font-mono-num text-slate-200">Rp 0</p>
+          </div>
+        </div>
+
+        <div>
+          <p class="text-xs font-semibold text-slate-300 mb-2">💡 Saran: Kurangi pengeluaran terbesar ini:</p>
+          <div id="advisorTopExpenses" class="space-y-1.5"></div>
+        </div>
       </div>
 
       <!-- Kamus Istilah Keuangan Mini (Glossary) & Badges Gamifikasi -->
@@ -1192,6 +1231,42 @@
   <!-- ========================================== -->
   <!-- MODAL: PREVIEW FOTO BUKTI PEMBAYARAN       -->
   <!-- ========================================== -->
+  <!-- Modal Tabungan -->
+  <div id="savingsModal" class="hidden fixed inset-0 z-50 modal-backdrop items-center justify-center p-4">
+    <div class="glass-card modal-content-anim w-full max-w-sm p-6 border border-slate-700/80 shadow-2xl">
+      <div class="flex items-center justify-between mb-4">
+        <h3 id="savingsModalTitle" class="text-base font-bold text-slate-100 flex items-center gap-2">
+          <i class="fa-solid fa-piggy-bank text-emerald-400"></i> Tambah Tabungan
+        </h3>
+        <button onclick="FinVibeApp.closeSavingsModal()" class="text-slate-400 hover:text-slate-200 p-1.5 rounded-lg bg-slate-800/80">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <p id="savingsModalDesc" class="text-xs text-slate-400 mb-4">Masukkan jumlah yang ingin Anda tabung.</p>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1">Jumlah (Rp)</label>
+          <input type="number" id="savingsAmount" class="finvibe-input font-mono-num text-sm w-full" placeholder="500000" min="1">
+        </div>
+        <div>
+          <label class="block text-[11px] font-semibold text-slate-400 mb-1">Catatan (opsional)</label>
+          <input type="text" id="savingsNote" class="finvibe-input text-sm w-full" placeholder="Nabung rutin bulanan...">
+        </div>
+      </div>
+
+      <div id="savingsWarning" class="hidden mt-3 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-xs text-red-400">
+        ⚠️ Saldo tabungan tidak cukup!
+      </div>
+
+      <div class="flex gap-2 mt-5">
+        <button onclick="FinVibeApp.closeSavingsModal()" class="flex-1 py-2.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-semibold transition-colors">Batal</button>
+        <button id="savingsConfirmBtn" onclick="FinVibeApp.confirmSavings()" class="flex-1 py-2.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold transition-colors">Simpan</button>
+      </div>
+    </div>
+  </div>
+
   <div id="photoPreviewModal" class="hidden fixed inset-0 z-50 modal-backdrop items-center justify-center p-4">
     <div class="glass-card modal-content-anim w-full max-w-lg p-5 border border-slate-700/80 shadow-2xl relative flex flex-col items-center">
       
@@ -1257,8 +1332,16 @@
         <div>
           <label class="block text-xs font-semibold text-slate-300 mb-1">Total Dana Darurat Saat Ini (Rp)</label>
           <input type="number" id="settingEmergencyFund" class="finvibe-input font-mono-num text-xs" placeholder="18000000">
-          <p class="text-[10px] text-slate-500 mt-1">Digunakan untuk mengukur skor ketahanan & kalkulator dana darurat.</p>
+          <p class="text-[10px] text-slate-500 mt-1">Digunakan untuk mengukur skor ketahanan finansial.</p>
         </div>
+
+        <!-- Tanggal Gajian -->
+        <div>
+          <label class="block text-xs font-semibold text-slate-300 mb-1">📅 Tanggal Gajian (Hari ke-)</label>
+          <input type="number" id="settingPayDay" min="1" max="31" class="finvibe-input font-mono-num text-xs" placeholder="25">
+          <p class="text-[10px] text-slate-500 mt-1">Digunakan untuk fitur Budget Advisor — peringatan anggaran tipis sebelum gajian.</p>
+        </div>
+
 
         <!-- Profil & Tema -->
         <div class="grid grid-cols-2 gap-3">

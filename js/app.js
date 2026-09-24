@@ -1127,13 +1127,16 @@ const FinVibeApp = {
     // 3. Aturan 50/30/20 Visual
     this.render503020Rule(stats);
 
-    // 4. Kalkulator Dana Darurat
-    this.renderEmergencyCalculator(stats, health);
+    // 4. Dompet Tabungan
+    this.renderSavingsWallet();
 
-    // 5. Kamus Mini Istilah Keuangan
+    // 5. Budget Advisor / Peringatan Gajian
+    this.renderBudgetAdvisor(stats);
+
+    // 6. Kamus Mini Istilah Keuangan
     this.renderGlossary();
 
-    // 6. Badges Gamifikasi
+    // 7. Badges Gamifikasi
     this.renderBadges(stats);
   },
 
@@ -1266,42 +1269,229 @@ const FinVibeApp = {
     if (valSavings) valSavings.textContent = this.formatRupiah(actual.savings);
   },
 
-  // Render Kalkulator Kesiapan Dana Darurat
-  renderEmergencyCalculator(stats, health) {
-    const currentVal = Number(this.settings.currentEmergencyFund || 0);
-    const targetVal = health.targetEmergency;
-    const pct = targetVal > 0 ? Math.min(100, Math.round((currentVal / targetVal) * 100)) : 0;
-    const monthsCovered = stats.expense > 0 ? (currentVal / stats.expense).toFixed(1) : 0;
+  // ============================================================
+  // DOMPET TABUNGAN
+  // ============================================================
 
-    const currEl = document.getElementById('calcCurrEmergency');
-    const targetEl = document.getElementById('calcTargetEmergency');
-    const pctEl = document.getElementById('calcEmergencyPercent');
-    const barEl = document.getElementById('calcEmergencyBar');
-    const noteEl = document.getElementById('calcEmergencyNote');
+  // Hitung saldo tabungan dari semua transaksi
+  getSavingsBalance() {
+    let balance = 0;
+    (this.transactions || []).forEach(tx => {
+      if (tx.category === 'Tabungan & Investasi' && tx.type === 'expense') {
+        balance += Number(tx.amount) || 0; // setoran tabungan
+      }
+      if (tx.category === 'Ambil Tabungan' && tx.type === 'income') {
+        balance -= Number(tx.amount) || 0; // pengambilan tabungan
+      }
+    });
+    return Math.max(0, balance);
+  },
 
-    if (currEl) currEl.value = currentVal;
-    if (targetEl) targetEl.textContent = this.formatRupiah(targetVal);
-    if (pctEl) pctEl.textContent = `${pct}% Kesiapan`;
-    if (barEl) {
-      barEl.style.width = `${pct}%`;
-      barEl.className = `h-full rounded-full transition-all duration-700 ${pct >= 100 ? 'bg-emerald-500' : (pct >= 50 ? 'bg-sky-500' : 'bg-amber-500')}`;
+  // Render Dompet Tabungan
+  renderSavingsWallet() {
+    const balance = this.getSavingsBalance();
+    const balEl = document.getElementById('savingsWalletBalance');
+    const badgeEl = document.getElementById('savingsWalletBadge');
+    const subtextEl = document.getElementById('savingsWalletSubtext');
+    const historyEl = document.getElementById('savingsHistoryList');
+
+    if (balEl) balEl.textContent = this.formatRupiah(balance);
+    if (badgeEl) badgeEl.textContent = this.formatRupiah(balance);
+
+    // Riwayat tabungan (max 5 terbaru)
+    const savingsTx = (this.transactions || [])
+      .filter(tx => tx.category === 'Tabungan & Investasi' || tx.category === 'Ambil Tabungan')
+      .sort((a, b) => {
+        const tA = a.createdAt ? new Date(a.createdAt) : this.parseDateValue(a.date);
+        const tB = b.createdAt ? new Date(b.createdAt) : this.parseDateValue(b.date);
+        return tB - tA;
+      })
+      .slice(0, 5);
+
+    if (subtextEl) {
+      subtextEl.textContent = savingsTx.length === 0
+        ? 'Belum ada tabungan. Mulai nabung sekarang!'
+        : `${savingsTx.length} riwayat tabungan terakhir`;
     }
-    if (noteEl) {
-      noteEl.textContent = `Dana saat ini sanggup menopang ${monthsCovered} bulan gaya hidup pengeluaran rata-rata Anda (${this.formatRupiah(stats.expense)}/bln).`;
+
+    if (historyEl) {
+      if (savingsTx.length === 0) {
+        historyEl.innerHTML = `<p class="text-slate-500 text-center text-[11px] py-2">Belum ada riwayat tabungan</p>`;
+      } else {
+        historyEl.innerHTML = savingsTx.map(tx => {
+          const isDeposit = tx.category === 'Tabungan & Investasi';
+          return `
+            <div class="flex items-center justify-between py-1 border-b border-slate-800/60">
+              <div class="flex items-center gap-2">
+                <span class="${isDeposit ? 'text-emerald-400' : 'text-red-400'} text-[11px]">
+                  ${isDeposit ? '↑ Setor' : '↓ Ambil'}
+                </span>
+                <span class="text-[11px] text-slate-400 truncate max-w-[100px]">${tx.notes || '-'}</span>
+              </div>
+              <span class="font-mono-num text-[11px] font-bold ${isDeposit ? 'text-emerald-400' : 'text-red-400'}">
+                ${isDeposit ? '+' : '-'}${this.formatRupiah(tx.amount)}
+              </span>
+            </div>
+          `;
+        }).join('');
+      }
     }
   },
 
-  // Update Dana Darurat dari Input Kalkulator
-  updateEmergencyFund(val) {
-    const num = Math.max(0, Number(val) || 0);
-    this.settings.currentEmergencyFund = num;
-    this.saveState();
-    const stats = this.calculateStats();
-    const health = FinancialEducation.calculateHealthScore(stats, this.debts, this.settings);
-    this.renderHealthGauge(health);
-    this.renderEmergencyCalculator(stats, health);
-    this.renderDynamicInsights(stats);
-    this.renderBadges(stats);
+  _savingsModalMode: 'deposit',
+
+  openSavingsModal(mode = 'deposit') {
+    this._savingsModalMode = mode;
+    const isDeposit = mode === 'deposit';
+    const modal = document.getElementById('savingsModal');
+    const title = document.getElementById('savingsModalTitle');
+    const desc = document.getElementById('savingsModalDesc');
+    const btn = document.getElementById('savingsConfirmBtn');
+    const warn = document.getElementById('savingsWarning');
+
+    if (title) title.innerHTML = `<i class="fa-solid ${isDeposit ? 'fa-piggy-bank text-emerald-400' : 'fa-hand-holding-dollar text-amber-400'}"></i> ${isDeposit ? 'Tambah Tabungan' : 'Gunakan Tabungan'}`;
+    if (desc) desc.textContent = isDeposit
+      ? 'Masukkan jumlah yang ingin Anda tabung. Akan dicatat sebagai pengeluaran "Tabungan & Investasi".'
+      : `Masukkan jumlah yang ingin diambil dari tabungan. Saldo saat ini: ${this.formatRupiah(this.getSavingsBalance())}`;
+    if (btn) btn.className = `flex-1 py-2.5 rounded-lg ${isDeposit ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-amber-600 hover:bg-amber-500'} text-white text-sm font-bold transition-colors`;
+    if (warn) warn.classList.add('hidden');
+
+    document.getElementById('savingsAmount').value = '';
+    document.getElementById('savingsNote').value = '';
+
+    if (modal) {
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+    }
+  },
+
+  closeSavingsModal() {
+    const modal = document.getElementById('savingsModal');
+    if (modal) { modal.classList.add('hidden'); modal.classList.remove('flex'); }
+  },
+
+  async confirmSavings() {
+    const amount = Number(document.getElementById('savingsAmount').value);
+    const note = document.getElementById('savingsNote').value.trim();
+    const warn = document.getElementById('savingsWarning');
+
+    if (!amount || amount <= 0) {
+      this.showToast('Masukkan jumlah yang valid!', 'danger');
+      return;
+    }
+
+    const isDeposit = this._savingsModalMode === 'deposit';
+
+    // Validasi saldo cukup saat pengambilan
+    if (!isDeposit) {
+      const balance = this.getSavingsBalance();
+      if (amount > balance) {
+        if (warn) { warn.classList.remove('hidden'); warn.textContent = `⚠️ Saldo tabungan tidak cukup! Saldo: ${this.formatRupiah(balance)}`; }
+        return;
+      }
+    }
+
+    const newTx = {
+      id: crypto.randomUUID ? crypto.randomUUID() : 'tx-' + Date.now(),
+      type: isDeposit ? 'expense' : 'income',
+      category: isDeposit ? 'Tabungan & Investasi' : 'Ambil Tabungan',
+      amount,
+      date: new Date().toISOString().split('T')[0],
+      notes: note || (isDeposit ? 'Setoran tabungan' : 'Pengambilan tabungan'),
+      createdAt: new Date().toISOString(),
+      source: 'savings'
+    };
+
+    this.transactions.unshift(newTx);
+    this.syncToSheets('ADD_TRANSACTION', newTx);
+    this.showToast(
+      isDeposit
+        ? `✅ Tabungan ${this.formatRupiah(amount)} berhasil ditambahkan!`
+        : `💸 Tabungan ${this.formatRupiah(amount)} berhasil digunakan. Sisa: ${this.formatRupiah(this.getSavingsBalance())}`,
+      'success'
+    );
+    this.closeSavingsModal();
+    this.renderAll();
+  },
+
+  // ============================================================
+  // BUDGET ADVISOR — Peringatan Gajian
+  // ============================================================
+
+  renderBudgetAdvisor(stats) {
+    const payDay = Number(this.settings.payDay || 0);
+    const card = document.getElementById('budgetAdvisorCard');
+    if (!card || payDay === 0) {
+      if (card) card.classList.add('hidden');
+      return;
+    }
+
+    const now = new Date();
+    const today = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+
+    // Hitung hari ke gajian berikutnya
+    let daysUntilPayday;
+    if (today < payDay) {
+      daysUntilPayday = payDay - today;
+    } else if (today === payDay) {
+      daysUntilPayday = 0;
+    } else {
+      // Sudah lewat gajian bulan ini, hitung ke bulan depan
+      daysUntilPayday = (daysInMonth - today) + payDay;
+    }
+
+    const { income, expense, dailyBurnRate } = stats;
+    const netBalance = income - expense;
+    const projectedSpendUntilPayday = dailyBurnRate * daysUntilPayday;
+    const projectedLeftover = netBalance - projectedSpendUntilPayday;
+
+    // Tampilkan peringatan hanya jika proyeksi saldo tipis (<20% dari income) dan masih > 5 hari ke gajian
+    const isWarning = projectedLeftover < (income * 0.2) && daysUntilPayday > 5 && income > 0;
+
+    if (!isWarning) {
+      card.classList.add('hidden');
+      return;
+    }
+
+    card.classList.remove('hidden');
+
+    // Update info
+    const subtitle = document.getElementById('budgetAdvisorSubtitle');
+    const daysLeftLabel = document.getElementById('budgetAdvisorDaysLeft');
+    const dailyBurnEl = document.getElementById('advisorDailyBurn');
+    const daysLeftEl = document.getElementById('advisorDaysLeft');
+    const projectedEl = document.getElementById('advisorProjectedLeft');
+    const topExpEl = document.getElementById('advisorTopExpenses');
+
+    if (subtitle) subtitle.textContent = `Dengan pola belanja saat ini, diperkirakan saldo menipis sebelum gajian tgl ${payDay}`;
+    if (daysLeftLabel) daysLeftLabel.textContent = `${daysUntilPayday} hari lagi gajian`;
+    if (dailyBurnEl) dailyBurnEl.textContent = this.formatRupiah(Math.round(dailyBurnRate));
+    if (daysLeftEl) daysLeftEl.textContent = `${daysUntilPayday} hari`;
+    if (projectedEl) {
+      projectedEl.textContent = this.formatRupiah(Math.max(0, Math.round(projectedLeftover)));
+      projectedEl.className = `text-sm font-bold font-mono-num ${projectedLeftover < 0 ? 'text-red-400' : 'text-amber-400'}`;
+    }
+
+    // Top 3 kategori pengeluaran terbesar (saran pengurangan)
+    const expenseByCategory = {};
+    (this.transactions || []).forEach(tx => {
+      if (tx.type === 'expense' && tx.category !== 'Tabungan & Investasi') {
+        expenseByCategory[tx.category] = (expenseByCategory[tx.category] || 0) + Number(tx.amount);
+      }
+    });
+    const topCategories = Object.entries(expenseByCategory)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3);
+
+    if (topExpEl) {
+      topExpEl.innerHTML = topCategories.map(([cat, total]) => `
+        <div class="flex items-center justify-between p-2.5 rounded-lg bg-slate-800/60 text-xs">
+          <span class="text-slate-300 font-medium">${cat}</span>
+          <span class="font-mono-num font-bold text-red-400">${this.formatRupiah(total)}</span>
+        </div>
+      `).join('') || `<p class="text-slate-500 text-xs">Belum ada data pengeluaran.</p>`;
+    }
   },
 
   // Render Kamus Istilah Keuangan Mini
@@ -1863,6 +2053,8 @@ const FinVibeApp = {
     }
     document.getElementById('settingSavingsTarget').value = this.settings.monthlySavingsTarget || 3500000;
     document.getElementById('settingEmergencyFund').value = this.settings.currentEmergencyFund || 18000000;
+    const payDayInput = document.getElementById('settingPayDay');
+    if (payDayInput) payDayInput.value = this.settings.payDay || '';
     document.getElementById('settingProfileType').value = this.settings.profileType || 'single';
     document.getElementById('settingThemeSelect').value = this.currentTheme;
 
@@ -1889,6 +2081,8 @@ const FinVibeApp = {
     }
     this.settings.monthlySavingsTarget = Number(document.getElementById('settingSavingsTarget').value) || 3500000;
     this.settings.currentEmergencyFund = Number(document.getElementById('settingEmergencyFund').value) || 0;
+    const payDaySave = document.getElementById('settingPayDay');
+    if (payDaySave) this.settings.payDay = Number(payDaySave.value) || 0;
     this.settings.profileType = document.getElementById('settingProfileType').value;
     
     const chosenTheme = document.getElementById('settingThemeSelect').value;
