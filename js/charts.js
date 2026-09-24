@@ -38,6 +38,16 @@ const FinVibeCharts = {
     const incomeData = [0, 0, 0, 0, 0, 0, 0];
     const expenseData = [0, 0, 0, 0, 0, 0, 0];
 
+    // Helper: ambil tanggal YYYY-MM-DD dari tx (support createdAt, string, dan serial Excel)
+    const getTxDateStr = (tx) => {
+      if (tx.createdAt) return tx.createdAt.split('T')[0];
+      if (!tx.date) return '';
+      if (typeof tx.date === 'number' || /^\d{5,}$/.test(String(tx.date))) {
+        return new Date((Number(tx.date) - 25569) * 86400000).toISOString().split('T')[0];
+      }
+      return String(tx.date).split('T')[0];
+    };
+
     const today = new Date();
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
@@ -47,7 +57,7 @@ const FinVibeCharts = {
 
       const dateStr = d.toISOString().split('T')[0];
       (transactions || []).forEach(tx => {
-        if (tx.date === dateStr) {
+        if (getTxDateStr(tx) === dateStr) {
           const amt = Number(tx.amount);
           if (tx.type === 'income') incomeData[6 - i] += amt;
           if (tx.type === 'expense') expenseData[6 - i] += amt;
@@ -55,10 +65,9 @@ const FinVibeCharts = {
       });
     }
 
-    // Pastikan data tidak flat 0 untuk demo visual yang indah
-    const hasData = incomeData.some(v => v > 0) || expenseData.some(v => v > 0);
-    const finalIncome = hasData ? incomeData : [12500000, 0, 3800000, 0, 0, 450000, 0];
-    const finalExpense = hasData ? expenseData : [1950000, 650000, 2800000, 540000, 380000, 650000, 820000];
+    // Tampilkan data asli (tanpa fallback demo)
+    const finalIncome = incomeData;
+    const finalExpense = expenseData;
 
     this.lineChart = new Chart(ctx, {
       type: 'line',
@@ -342,10 +351,19 @@ const FinVibeCharts = {
     const dayTotals = [0, 0, 0, 0, 0, 0, 0];
 
     (transactions || []).forEach(tx => {
-      if (tx.type === 'expense' && tx.date) {
-        const d = new Date(tx.date);
-        let dayIdx = d.getDay(); // 0 is Sunday
-        // Ubah indeks agar Senin = 0, Minggu = 6
+      if (tx.type === 'expense') {
+        let d;
+        if (tx.createdAt) {
+          d = new Date(tx.createdAt);
+        } else if (tx.date) {
+          if (typeof tx.date === 'number' || /^\d{5,}$/.test(String(tx.date))) {
+            d = new Date((Number(tx.date) - 25569) * 86400000);
+          } else {
+            d = new Date(tx.date);
+          }
+        }
+        if (!d || isNaN(d.getTime())) return;
+        let dayIdx = d.getDay();
         const mappedIdx = (dayIdx + 6) % 7;
         dayTotals[mappedIdx] += Number(tx.amount);
       }
