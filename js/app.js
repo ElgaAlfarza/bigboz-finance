@@ -713,10 +713,30 @@ const FinVibeApp = {
 
   // Hitung Metrik Keuangan Pokok
   calculateStats() {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth(); // 0-indexed
+
+    // Filter hanya transaksi bulan ini
+    const monthlyTx = this.transactions.filter(tx => {
+      let d;
+      if (tx.createdAt) {
+        d = new Date(tx.createdAt);
+      } else if (tx.date) {
+        if (typeof tx.date === 'number' || /^\d{5,}$/.test(String(tx.date))) {
+          d = new Date((Number(tx.date) - 25569) * 86400000);
+        } else {
+          d = new Date(tx.date);
+        }
+      }
+      if (!d || isNaN(d.getTime())) return false;
+      return d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+    });
+
     let income = 0;
     let expense = 0;
 
-    this.transactions.forEach(tx => {
+    monthlyTx.forEach(tx => {
       const amt = Number(tx.amount) || 0;
       if (tx.type === 'income') income += amt;
       if (tx.type === 'expense') expense += amt;
@@ -724,9 +744,8 @@ const FinVibeApp = {
 
     const net = income - expense;
 
-    // Hitung rata-rata Burn Rate Harian
-    const today = new Date();
-    const currentDay = Math.max(1, today.getDate());
+    // Hitung rata-rata Burn Rate Harian (berdasarkan hari berjalan bulan ini)
+    const currentDay = Math.max(1, now.getDate());
     const dailyBurnRate = expense / currentDay;
 
     return {
@@ -734,7 +753,8 @@ const FinVibeApp = {
       expense,
       net,
       dailyBurnRate,
-      txCount: this.transactions.length
+      txCount: monthlyTx.length,
+      totalTxCount: this.transactions.length
     };
   },
 
@@ -1143,10 +1163,15 @@ const FinVibeApp = {
 
     // Breakdown Bars
     const bd = health.breakdown;
-    this.updateHealthBar('scoreBarSavings', bd.savings.points, bd.savings.max, `${bd.savings.points}/${bd.savings.max} pt (Tabungan ${bd.savings.rate}%)`);
-    this.updateHealthBar('scoreBarDTI', bd.dti.points, bd.dti.max, `${bd.dti.points}/${bd.dti.max} pt (DTI ${bd.dti.ratio}%)`);
-    this.updateHealthBar('scoreBarEmergency', bd.emergency.points, bd.emergency.max, `${bd.emergency.points}/${bd.emergency.max} pt (${bd.emergency.ratio}% siap)`);
-    this.updateHealthBar('scoreBarConsistency', bd.consistency.points, bd.consistency.max, `${bd.consistency.points}/${bd.consistency.max} pt (${bd.consistency.count} catatan)`);
+    this.updateHealthBar('scoreBarSavings', bd.savings.points, bd.savings.max,
+      `${bd.savings.points}/${bd.savings.max} pt · Sisihkan ${bd.savings.rate}% dari penghasilan`);
+    this.updateHealthBar('scoreBarDTI', bd.dti.points, bd.dti.max,
+      `${bd.dti.points}/${bd.dti.max} pt · Beban cicilan ${bd.dti.ratio}% dari penghasilan`);
+    this.updateHealthBar('scoreBarEmergency', bd.emergency.points, bd.emergency.max,
+      `${bd.emergency.points}/${bd.emergency.max} pt · Dana darurat ${bd.emergency.ratio}% terpenuhi`);
+    this.updateHealthBar('scoreBarConsistency', bd.consistency.points, bd.consistency.max,
+      `${bd.consistency.points}/${bd.consistency.max} pt · ${bd.consistency.count} transaksi bulan ini`);
+
   },
 
   updateHealthBar(elementId, points, max, label) {
