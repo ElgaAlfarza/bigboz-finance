@@ -756,9 +756,11 @@ const FinVibeApp = {
   },
 
   // Format tampilan tanggal: "24 Sep 2026, 07:30:00"
-  formatDateDisplay(val) {
-    const d = this.parseDateValue(val);
-    if (isNaN(d.getTime())) return val;
+  formatDateDisplay(dateVal, createdAt = null) {
+    // Gunakan createdAt untuk presisi jam:menit:detik jika tersedia
+    const raw = createdAt || dateVal;
+    const d = createdAt ? new Date(createdAt) : this.parseDateValue(dateVal);
+    if (isNaN(d.getTime())) return raw;
     return d.toLocaleString('id-ID', {
       day: '2-digit',
       month: 'short',
@@ -1379,8 +1381,10 @@ const FinVibeApp = {
       const matchCat = this.filters.category === 'all' || tx.category === this.filters.category;
       return matchSearch && matchType && matchCat;
     }).sort((a, b) => {
-      // Urutkan terbaru di atas (descending)
-      return this.parseDateValue(b.date) - this.parseDateValue(a.date);
+      // Urutkan terbaru di atas — pakai createdAt (presisi penuh) jika ada, fallback ke date
+      const tA = a.createdAt ? new Date(a.createdAt) : this.parseDateValue(a.date);
+      const tB = b.createdAt ? new Date(b.createdAt) : this.parseDateValue(b.date);
+      return tB - tA;
     });
 
     if (countBadge) countBadge.textContent = `${filtered.length} Transaksi`;
@@ -1407,7 +1411,7 @@ const FinVibeApp = {
 
         return `
           <tr class="border-b border-slate-800/80 hover:bg-slate-800/30 transition-colors">
-            <td class="py-3 px-4 text-xs text-slate-400">${this.formatDateDisplay(tx.date)}</td>
+            <td class="py-3 px-4 text-xs text-slate-400">${this.formatDateDisplay(tx.date, tx.createdAt)}</td>
             <td class="py-3 px-4">
               <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${badgeClass}">
                 <i class="fa-solid ${isInc ? 'fa-arrow-down' : 'fa-arrow-up'} text-[10px]"></i>
@@ -1462,7 +1466,7 @@ const FinVibeApp = {
               <div>
                 <h6 class="text-xs font-bold text-slate-200">${tx.notes || tx.category}</h6>
                 <div class="flex items-center gap-2 mt-0.5">
-                  <span class="text-[10px] text-slate-400">${this.formatDateDisplay(tx.date)}</span>
+                  <span class="text-[10px] text-slate-400">${this.formatDateDisplay(tx.date, tx.createdAt)}</span>
                   <span class="text-[10px] px-1.5 py-0.2 rounded font-medium ${badgeClass}">${tx.category}</span>
                   ${tx.photoProofUrl ? `
                     <button type="button" onclick="FinVibeApp.previewPhoto('${tx.photoProofUrl}')" 
