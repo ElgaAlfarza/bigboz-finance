@@ -1262,7 +1262,19 @@ const FinVibeApp = {
   // Render Aturan 50/30/20 Visual
   render503020Rule(stats) {
     const data = FinancialEducation.calculate503020Rule(stats, this.transactions);
-    if (!data) return;
+
+    // Reset ke 0 jika tidak ada data income
+    if (!data || stats.income <= 0) {
+      ['ruleActualNeeds','ruleActualWants','ruleActualSavings'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.style.width = '0%'; el.textContent = '0%'; }
+      });
+      ['valActualNeeds','valActualWants','valActualSavings'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = 'Rp 0';
+      });
+      return;
+    }
 
     const actual = data.actual;
     

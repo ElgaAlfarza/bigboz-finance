@@ -76,26 +76,31 @@ const FinancialEducation = {
     }
 
     // 2. DTI Score (Maks 30 poin)
+    // Hanya dihitung jika ada income — hindari skor palsu saat data kosong
     let dtiPoints = 0;
-    if (debts.length === 0 || totalDebtMonthly === 0) {
-      dtiPoints = 30; // Bebas utang
-    } else if (dti < 20) {
-      dtiPoints = 28;
-    } else if (dti < 30) {
-      dtiPoints = 25;
-    } else if (dti <= 40) {
-      dtiPoints = 15;
-    } else {
-      dtiPoints = 5;
+    if (income > 0) {
+      if (debts.length === 0 || totalDebtMonthly === 0) {
+        dtiPoints = 30; // Bebas utang
+      } else if (dti < 20) {
+        dtiPoints = 28;
+      } else if (dti < 30) {
+        dtiPoints = 25;
+      } else if (dti <= 40) {
+        dtiPoints = 15;
+      } else {
+        dtiPoints = 5;
+      }
     }
 
     // 3. Dana Darurat Score (Maks 20 poin)
+    // Hanya dihitung jika ada data pengeluaran aktual — hindari skor palsu saat data kosong
     const currentEmergency = Number(settings.currentEmergencyFund || 0);
-    // Ideal target: 3 - 6x pengeluaran bulanan
     const targetMultiplier = settings.profileType === 'freelancer' ? 9 : (settings.profileType === 'married' ? 6 : 3);
-    const targetEmergency = Math.max(expense * targetMultiplier, 5000000);
+    const targetEmergency = expense > 0 ? expense * targetMultiplier : 0;
     const emergencyRatio = targetEmergency > 0 ? (currentEmergency / targetEmergency) : 0;
-    const emergencyPoints = Math.min(20, Math.round(emergencyRatio * 20));
+    // Jika tidak ada pengeluaran (belum ada data), skor darurat = 0
+    const emergencyPoints = expense > 0 ? Math.min(20, Math.round(emergencyRatio * 20)) : 0;
+
 
     // 4. Disiplin Pencatatan (Maks 15 poin)
     const txCount = stats.txCount || 0;
@@ -210,26 +215,26 @@ const FinancialEducation = {
       }
     }
 
-    // 3. Evaluasi Dana Darurat
+    // 3. Evaluasi Dana Darurat (hanya tampilkan jika ada data pengeluaran)
     const currentEmergency = Number(settings.currentEmergencyFund || 0);
     const monthsCovered = expense > 0 ? (currentEmergency / expense).toFixed(1) : 0;
-    if (monthsCovered < 3) {
+    if (expense > 0 && monthsCovered < 3) {
       insights.push({
         type: 'warning',
         icon: 'life-buoy',
         title: 'Kesiapan Dana Darurat Masih Rendah',
-        text: `Dana daruratmu saat ini baru sanggup bertahan selama ${monthsCovered} bulan pengeluaran normal. Idealnya siapkan minimal 3 hingga 6 bulan pengeluaran.`,
-        actionText: 'Buka Kalkulator Darurat',
-        actionTarget: 'education'
+        text: `Dana daruratmu saat ini baru sanggup bertahan selama ${monthsCovered} bulan pengeluaran normal. Idealnya siapkan minimal 3 hingga 6 bulan pengeluaran. Update jumlah dana darurat di Pengaturan.`,
+        actionText: null,
+        actionTarget: null
       });
-    } else if (monthsCovered >= 6) {
+    } else if (expense > 0 && monthsCovered >= 6) {
       insights.push({
         type: 'success',
         icon: 'award',
         title: 'Benteng Dana Darurat Kokoh',
         text: `Hebat! Dana daruratmu telah mencukupi kebutuhan ${monthsCovered} bulan pengeluaran. Kamu memiliki perlindungan kuat dari risiko finansial mendadak.`,
-        actionText: 'Review Dana Darurat',
-        actionTarget: 'education'
+        actionText: null,
+        actionTarget: null
       });
     }
 
