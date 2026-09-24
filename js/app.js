@@ -82,6 +82,30 @@ const FinVibeApp = {
       this.settings = savedSettings ? JSON.parse(savedSettings) : { ...DEFAULT_SETTINGS };
       this.currentTheme = savedTheme || this.settings.theme || 'dark';
 
+      // Auto-sinkron pengaturan pemasukan & tanggal gajian dari transaksi Gaji
+      const lastGaji = (this.transactions || []).find(t => 
+        t.type === 'income' && (
+          t.category === 'Gaji' || 
+          t.category === 'Gaji & Tunjangan' || 
+          (t.category && t.category.toLowerCase().includes('gaji')) ||
+          t.category === 'Bonus' ||
+          t.category === 'Bonus & Komisi'
+        )
+      );
+      if (lastGaji) {
+        let txDate;
+        if (lastGaji.createdAt) txDate = new Date(lastGaji.createdAt);
+        else if (lastGaji.date) {
+          txDate = typeof lastGaji.date === 'number' ? new Date((lastGaji.date - 25569) * 86400000) : new Date(lastGaji.date);
+        }
+        if (txDate && !isNaN(txDate.getTime())) {
+          this.settings.payDay = txDate.getDate();
+        }
+        if (lastGaji.amount) {
+          this.settings.monthlyIncome = Number(lastGaji.amount);
+        }
+      }
+
       // Muat ID spreadsheet cache jika ada
       const profile = window.GoogleAuth ? GoogleAuth.getUserProfile() : null;
       if (profile && profile.email) {
@@ -1184,7 +1208,7 @@ const FinVibeApp = {
 
   // Render Pusat Edukasi Keuangan
   renderEducationSection(stats) {
-    const health = FinancialEducation.calculateHealthScore(stats, this.debts, this.settings);
+    const health = FinancialEducation.calculateHealthScore(stats, this.debts, this.settings, this.transactions);
     this.currentHealthScore = health;
 
     // 1. Skor Kesehatan Keuangan Circular Gauge
@@ -1193,25 +1217,31 @@ const FinVibeApp = {
     // 2. Kartu "Tahukah Kamu?" Dinamis
     this.renderDynamicInsights(stats);
 
-    // 3. Aturan 50/30/20 Visual
+    // 3. Kalkulator Alokasi Anggaran Interaktif (50/30/20, 40/30/20/10, 80/20)
+    this.renderBudgetCalculator();
+
+    // 4. Aturan 50/30/20 Aktual vs Ideal
     this.render503020Rule(stats);
 
-    // 4. Dompet Tabungan
+    // 5. Dompet Tabungan
     this.renderSavingsWallet();
 
-    // 5. Budget Advisor / Peringatan Gajian
+    // 6. Distribusi 4 Jenis Pengeluaran
+    this.renderExpenseTypeStats(stats);
+
+    // 7. Budget Advisor / Peringatan Gajian
     this.renderBudgetAdvisor(stats);
 
-    // 6. Kamus Mini Istilah Keuangan
+    // 8. Kamus Mini Istilah Keuangan
     this.renderGlossary();
 
-    // 7. Badges Gamifikasi
+    // 9. Badges Gamifikasi
     this.renderBadges(stats);
   },
 
   // Render Circular Gauge Skor Kesehatan Finansial
   renderHealthGauge(healthData) {
-    const health = healthData || this.currentHealthScore || FinancialEducation.calculateHealthScore(this.calculateStats(), this.debts, this.settings);
+    const health = healthData || this.currentHealthScore || FinancialEducation.calculateHealthScore(this.calculateStats(), this.debts, this.settings, this.transactions);
     
     const scoreValEl = document.getElementById('healthScoreValue');
     const scoreGradeEl = document.getElementById('healthScoreGrade');
@@ -1301,6 +1331,171 @@ const FinVibeApp = {
     } else {
       this.switchTab(target);
     }
+  },
+
+  currentBudgetRule: '5020',
+
+  switchBudgetRule(ruleKey) {
+    this.currentBudgetRule = ruleKey;
+    ['5020', '40301020', '8020'].forEach(k => {
+      const btn = document.getElementById(`ruleTab${k}`);
+      if (btn) {
+        if (k === ruleKey) {
+          btn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold transition-colors bg-sky-500 text-white rule-tab-active';
+        } else {
+          btn.className = 'px-3 py-1.5 rounded-lg text-xs font-bold transition-colors bg-slate-700 text-slate-300 hover:bg-slate-600';
+        }
+      }
+    });
+    this.renderBudgetCalculator();
+  },
+
+  renderBudgetCalculator() {
+    const salaryInput = document.getElementById('calcBudgetSalary');
+    if (!salaryInput) return;
+
+    let salary = this.getRawAmount('calcBudgetSalary');
+    if (!salary) {
+      salary = Number(this.settings.monthlyIncome) || 4500000;
+      salaryInput.value = salary.toLocaleString('id-ID');
+    }
+
+    const labelEl = document.getElementById('calcBudgetLabel');
+    if (labelEl) {
+      labelEl.textContent = this.formatRupiah(salary);
+    }
+
+    const descEl = document.getElementById('budgetRuleDesc');
+    const barEl = document.getElementById('calcBudgetBar');
+    const cardsEl = document.getElementById('calcBudgetCards');
+    if (!descEl || !barEl || !cardsEl) return;
+
+    let items = [];
+    if (this.currentBudgetRule === '40301020') {
+      descEl.innerHTML = `
+        <p class="font-bold text-sky-300 mb-0.5">Rumus 40 / 30 / 20 / 10 (Cocok jika Ada Cicilan & Alokasi Sosial)</p>
+        <p>Metode ini ideal jika Anda memiliki kewajiban cicilan rutin dan ingin mengalokasikan dana untuk kegiatan sosial atau keluarga. Batas maksimal aman cicilan adalah 30% agar arus kas tidak terganggu.</p>
+      `;
+      items = [
+        { label: 'Kebutuhan Hidup', pct: 40, color: 'bg-rose-500', textClass: 'text-rose-400', desc: 'Operasional harian & konsumsi wajib' },
+        { label: 'Cicilan / Utang', pct: 30, color: 'bg-indigo-500', textClass: 'text-indigo-400', desc: 'Batas maksimal cicilan kendaraan / rumah' },
+        { label: 'Tabungan & Asuransi', pct: 20, color: 'bg-emerald-500', textClass: 'text-emerald-400', desc: 'Dana darurat, asuransi, & pensiun' },
+        { label: 'Sosial / Kebaikan', pct: 10, color: 'bg-amber-500', textClass: 'text-amber-400', desc: 'Zakat, donasi, sedekah, ortu' }
+      ];
+    } else if (this.currentBudgetRule === '8020') {
+      descEl.innerHTML = `
+        <p class="font-bold text-sky-300 mb-0.5">Rumus 80 / 20 (Pay Yourself First - Paling Sederhana)</p>
+        <p>Cocok untuk Anda yang tidak ingin pusing mencatat pengeluaran secara detail. Langsung sisihkan 20% di awal gajian untuk masa depan, sisanya 80% bebas digunakan untuk menutup seluruh kebutuhan dan keinginan tanpa batasan ketat.</p>
+      `;
+      items = [
+        { label: 'Bebas Digunakan', pct: 80, color: 'bg-sky-500', textClass: 'text-sky-400', desc: 'Menutup seluruh kebutuhan & keinginan' },
+        { label: 'Tabungan & Investasi', pct: 20, color: 'bg-emerald-500', textClass: 'text-emerald-400', desc: 'Langsung sisihkan saat gajian masuk' }
+      ];
+    } else {
+      descEl.innerHTML = `
+        <p class="font-bold text-sky-300 mb-0.5">Rumus 50 / 30 / 20 (Elizabeth Warren - Paling Populer)</p>
+        <p>Formula klasik paling seimbang antara pemenuhan kebutuhan dasar (50%), kenyamanan gaya hidup (30%), dan pembentukan aset masa depan (20%).</p>
+      `;
+      items = [
+        { label: 'Kebutuhan Pokok (Needs)', pct: 50, color: 'bg-rose-500', textClass: 'text-rose-400', desc: 'Makan, sewa/KPR, listrik, air, pulsa, bensin' },
+        { label: 'Keinginan (Wants)', pct: 30, color: 'bg-amber-500', textClass: 'text-amber-400', desc: 'Hiburan, hobi, streaming, kafe, jalan-jalan' },
+        { label: 'Tabungan & Investasi', pct: 20, color: 'bg-emerald-500', textClass: 'text-emerald-400', desc: 'Dana darurat, investasi, tabungan jangka panjang' }
+      ];
+    }
+
+    barEl.innerHTML = items.map(item => `
+      <div class="${item.color} transition-all duration-500 flex items-center justify-center" style="width: ${item.pct}%" title="${item.label}: ${item.pct}%">
+        <span>${item.pct}%</span>
+      </div>
+    `).join('');
+
+    cardsEl.innerHTML = items.map(item => {
+      const amount = Math.round((salary * item.pct) / 100);
+      return `
+        <div class="glass-card p-3 rounded-xl border border-slate-700/60 flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[11px] font-bold ${item.textClass}">${item.label}</span>
+              <span class="text-[10px] font-bold px-1.5 py-0.2 rounded bg-slate-800 text-slate-300">${item.pct}%</span>
+            </div>
+            <p class="text-[10px] text-slate-400 leading-tight mb-2">${item.desc}</p>
+          </div>
+          <p class="text-sm font-bold font-mono-num ${item.textClass}">${this.formatRupiah(amount)}</p>
+        </div>
+      `;
+    }).join('');
+  },
+
+  // Render Distribusi 4 Jenis Pengeluaran (Tetap, Variabel, Diskresi, Tak Terduga)
+  renderExpenseTypeStats(stats) {
+    const statsContainer = document.getElementById('expenseTypeStats');
+    const chartEl = document.getElementById('expenseTypeChart');
+    if (!statsContainer || !chartEl) return;
+
+    const typeTotals = { tetap: 0, variabel: 0, diskresi: 0, tak_terduga: 0 };
+    let totalExpense = 0;
+
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    (this.transactions || []).forEach(tx => {
+      if (tx.type !== 'expense') return;
+      let d = tx.createdAt ? new Date(tx.createdAt) : (tx.date ? new Date(tx.date) : null);
+      if (d && !isNaN(d.getTime()) && (d.getFullYear() !== currentYear || d.getMonth() !== currentMonth)) {
+        return;
+      }
+      const amt = Number(tx.amount) || 0;
+      totalExpense += amt;
+
+      let expType = tx.expenseType;
+      if (!expType) {
+        const cat = tx.category || '';
+        if (cat === 'Cicilan') expType = 'tetap';
+        else if (['Tagihan & Utilitas', 'Internet & Pulsa', 'Belanja & Groceries', 'Transportasi'].includes(cat)) expType = 'variabel';
+        else if (['Makanan & Kuliner', 'Hiburan & Langganan', 'Belanja Pribadi'].includes(cat)) expType = 'diskresi';
+        else if (cat === 'Kesehatan') expType = 'tak_terduga';
+        else expType = 'variabel';
+      }
+      if (typeTotals[expType] !== undefined) {
+        typeTotals[expType] += amt;
+      } else {
+        typeTotals.variabel += amt;
+      }
+    });
+
+    if (totalExpense <= 0) {
+      statsContainer.classList.add('hidden');
+      return;
+    }
+
+    statsContainer.classList.remove('hidden');
+
+    const typeConfigs = [
+      { key: 'tetap', label: 'Tetap', icon: '🔒', color: 'bg-red-500', textClass: 'text-red-400' },
+      { key: 'variabel', label: 'Variabel', icon: '📊', color: 'bg-amber-500', textClass: 'text-amber-400' },
+      { key: 'diskresi', label: 'Diskresi (Gaya Hidup)', icon: '🎯', color: 'bg-purple-500', textClass: 'text-purple-400', badge: 'Pos Pangkas Utama' },
+      { key: 'tak_terduga', label: 'Tak Terduga', icon: '⚡', color: 'bg-slate-500', textClass: 'text-slate-300' }
+    ];
+
+    chartEl.innerHTML = typeConfigs.map(cfg => {
+      const amt = typeTotals[cfg.key];
+      const pct = Math.round((amt / totalExpense) * 100) || 0;
+      return `
+        <div class="space-y-1">
+          <div class="flex justify-between items-center text-[11px]">
+            <span class="text-slate-300 flex items-center gap-1">
+              <span>${cfg.icon}</span> ${cfg.label}
+              ${cfg.badge ? `<span class="text-[9px] px-1.5 py-0.2 rounded bg-purple-500/20 text-purple-300 font-semibold">${cfg.badge}</span>` : ''}
+            </span>
+            <span class="font-mono-num font-bold text-slate-200">${this.formatRupiah(amt)} (${pct}%)</span>
+          </div>
+          <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+            <div class="${cfg.color} h-full rounded-full transition-all duration-500" style="width: ${pct}%"></div>
+          </div>
+        </div>
+      `;
+    }).join('');
   },
 
   // Render Aturan 50/30/20 Visual
@@ -1709,6 +1904,25 @@ const FinVibeApp = {
         const isDebt = tx.category === 'Cicilan';
         let badgeClass = isInc ? 'badge-emerald' : (isDebt ? 'badge-violet' : 'badge-crimson');
 
+        let expTypeBadge = '';
+        if (!isInc) {
+          const et = tx.expenseType || (
+            tx.category === 'Cicilan' ? 'tetap'
+            : (['Tagihan & Utilitas', 'Internet & Pulsa', 'Belanja & Groceries', 'Transportasi'].includes(tx.category) ? 'variabel'
+            : (['Makanan & Kuliner', 'Hiburan & Langganan', 'Belanja Pribadi'].includes(tx.category) ? 'diskresi'
+            : (tx.category === 'Kesehatan' ? 'tak_terduga' : 'variabel')))
+          );
+          const map = {
+            tetap: { text: 'Tetap', class: 'bg-blue-500/20 text-blue-300' },
+            variabel: { text: 'Variabel', class: 'bg-amber-500/20 text-amber-300' },
+            diskresi: { text: 'Diskresi', class: 'bg-purple-500/20 text-purple-300' },
+            tak_terduga: { text: 'Tak Terduga', class: 'bg-rose-500/20 text-rose-300' }
+          };
+          if (map[et]) {
+            expTypeBadge = `<span class="text-[9px] px-1.5 py-0.5 rounded font-medium ${map[et].class} ml-1">${map[et].text}</span>`;
+          }
+        }
+
         return `
           <tr class="border-b border-slate-800/80 hover:bg-slate-800/30 transition-colors">
             <td class="py-3 px-4 text-xs text-slate-400">${this.formatDateDisplay(tx.date, tx.createdAt)}</td>
@@ -1717,6 +1931,7 @@ const FinVibeApp = {
                 <i class="fa-solid ${isInc ? 'fa-arrow-down' : 'fa-arrow-up'} text-[10px]"></i>
                 ${tx.category}
               </span>
+              ${expTypeBadge}
             </td>
             <td class="py-3 px-4 text-xs text-slate-200">
               <div class="flex items-center gap-2">
@@ -1757,6 +1972,25 @@ const FinVibeApp = {
         const isDebt = tx.category === 'Cicilan';
         let badgeClass = isInc ? 'badge-emerald' : (isDebt ? 'badge-violet' : 'badge-crimson');
 
+        let expTypeBadge = '';
+        if (!isInc) {
+          const et = tx.expenseType || (
+            tx.category === 'Cicilan' ? 'tetap'
+            : (['Tagihan & Utilitas', 'Internet & Pulsa', 'Belanja & Groceries', 'Transportasi'].includes(tx.category) ? 'variabel'
+            : (['Makanan & Kuliner', 'Hiburan & Langganan', 'Belanja Pribadi'].includes(tx.category) ? 'diskresi'
+            : (tx.category === 'Kesehatan' ? 'tak_terduga' : 'variabel')))
+          );
+          const map = {
+            tetap: { text: 'Tetap', class: 'bg-blue-500/20 text-blue-300' },
+            variabel: { text: 'Variabel', class: 'bg-amber-500/20 text-amber-300' },
+            diskresi: { text: 'Diskresi', class: 'bg-purple-500/20 text-purple-300' },
+            tak_terduga: { text: 'Tak Terduga', class: 'bg-rose-500/20 text-rose-300' }
+          };
+          if (map[et]) {
+            expTypeBadge = `<span class="text-[9px] px-1.5 py-0.2 rounded font-medium ${map[et].class}">${map[et].text}</span>`;
+          }
+        }
+
         return `
           <div class="glass-card p-3.5 border border-slate-700/50 flex items-center justify-between gap-3">
             <div class="flex items-center gap-3">
@@ -1765,9 +1999,10 @@ const FinVibeApp = {
               </div>
               <div>
                 <h6 class="text-xs font-bold text-slate-200">${tx.notes || tx.category}</h6>
-                <div class="flex items-center gap-2 mt-0.5">
+                <div class="flex items-center gap-2 mt-0.5 flex-wrap">
                   <span class="text-[10px] text-slate-400">${this.formatDateDisplay(tx.date, tx.createdAt)}</span>
                   <span class="text-[10px] px-1.5 py-0.2 rounded font-medium ${badgeClass}">${tx.category}</span>
+                  ${expTypeBadge}
                   ${tx.photoProofUrl ? `
                     <button type="button" onclick="FinVibeApp.previewPhoto('${tx.photoProofUrl}')" 
                             class="text-[10px] text-sky-400 hover:text-sky-300 font-semibold inline-flex items-center gap-0.5">
@@ -1814,10 +2049,12 @@ const FinVibeApp = {
         titleEl.textContent = 'Edit Transaksi';
         document.getElementById('txEditId').value = tx.id;
         document.getElementById('txType').value = tx.type;
-        document.getElementById('txAmount').value = tx.amount;
+        document.getElementById('txAmount').value = tx.amount ? tx.amount.toLocaleString('id-ID') : '';
         document.getElementById('txCategory').value = tx.category;
         document.getElementById('txDate').value = tx.date;
         document.getElementById('txNotes').value = tx.notes || '';
+        const expTypeEl = document.getElementById('txExpenseType');
+        if (expTypeEl) expTypeEl.value = tx.expenseType || 'variabel';
         this.updateTxTypeUI(tx.type);
 
         if (tx.photoProofUrl) {
@@ -1831,6 +2068,8 @@ const FinVibeApp = {
       }
     } else {
       titleEl.textContent = '+ Tambah Transaksi Baru';
+      const expTypeEl = document.getElementById('txExpenseType');
+      if (expTypeEl) expTypeEl.value = 'variabel';
       this.updateTxTypeUI('expense');
     }
 
@@ -1846,18 +2085,35 @@ const FinVibeApp = {
     }
   },
 
+  handleCategoryChange(selectEl) {
+    const cat = selectEl.value;
+    const typeEl = document.getElementById('txExpenseType');
+    if (!typeEl) return;
+    if (cat === 'Cicilan') {
+      typeEl.value = 'tetap';
+    } else if (['Tagihan & Utilitas', 'Internet & Pulsa', 'Belanja & Groceries', 'Transportasi'].includes(cat)) {
+      typeEl.value = 'variabel';
+    } else if (['Makanan & Kuliner', 'Hiburan & Langganan', 'Belanja Pribadi'].includes(cat)) {
+      typeEl.value = 'diskresi';
+    } else if (cat === 'Kesehatan') {
+      typeEl.value = 'tak_terduga';
+    }
+  },
+
   updateTxTypeUI(type) {
     const incomeBtn = document.getElementById('txTypeIncomeBtn');
     const expenseBtn = document.getElementById('txTypeExpenseBtn');
     const typeInput = document.getElementById('txType');
     const catSelect = document.getElementById('txCategory');
+    const expGroup = document.getElementById('txExpenseTypeGroup');
 
     typeInput.value = type;
 
     if (type === 'income') {
       incomeBtn.className = 'flex-1 py-2 rounded-lg bg-emerald-600 text-white text-xs font-bold transition-all';
       expenseBtn.className = 'flex-1 py-2 rounded-lg bg-slate-800 text-slate-400 text-xs font-semibold hover:text-slate-200 transition-all';
-      
+      if (expGroup) expGroup.classList.add('hidden');
+
       // Kategori Pemasukan
       catSelect.innerHTML = `
         <option value="Gaji">💼 Gaji & Tunjangan</option>
@@ -1869,7 +2125,8 @@ const FinVibeApp = {
     } else {
       expenseBtn.className = 'flex-1 py-2 rounded-lg bg-red-600 text-white text-xs font-bold transition-all';
       incomeBtn.className = 'flex-1 py-2 rounded-lg bg-slate-800 text-slate-400 text-xs font-semibold hover:text-slate-200 transition-all';
-      
+      if (expGroup) expGroup.classList.remove('hidden');
+
       // Kategori Pengeluaran
       catSelect.innerHTML = `
         <option value="Belanja & Groceries">🛒 Belanja & Groceries</option>
@@ -1898,6 +2155,7 @@ const FinVibeApp = {
     const category = document.getElementById('txCategory').value;
     const date = document.getElementById('txDate').value;
     const notes = document.getElementById('txNotes').value.trim();
+    const expenseType = type === 'expense' ? (document.getElementById('txExpenseType')?.value || 'variabel') : null;
 
     // Validasi input nominal dengan indikator error merah
     if (!amount || amount <= 0) {
@@ -1932,6 +2190,7 @@ const FinVibeApp = {
           type,
           amount,
           category,
+          expenseType,
           date,
           notes,
           photoProofUrl: photoUrl || existingTx.photoProofUrl || ''
@@ -1946,6 +2205,7 @@ const FinVibeApp = {
         type,
         amount,
         category,
+        expenseType,
         date: date || new Date().toISOString().split('T')[0],
         notes,
         source: this._lastTxSource || 'manual',
@@ -1958,25 +2218,24 @@ const FinVibeApp = {
       this.showToast(`Transaksi ${type === 'income' ? 'pemasukan' : 'pengeluaran'} sebesar Rp ${amount.toLocaleString('id-ID')} berhasil dicatat & disinkronkan!`, 'success');
 
       // 🔄 Auto-sinkron Pengaturan saat input Gaji
-      if (type === 'income' && (category === 'Gaji & Tunjangan' || category === 'Bonus & Komisi')) {
-        const txDate = new Date(date || newTx.date);
-        const payDay = txDate.getDate();
+      const isGaji = type === 'income' && (
+        category === 'Gaji' ||
+        category === 'Gaji & Tunjangan' ||
+        (category && category.toLowerCase().includes('gaji')) ||
+        category === 'Bonus' ||
+        category === 'Bonus & Komisi'
+      );
+      if (isGaji) {
+        let txDate;
+        if (date) txDate = new Date(date);
+        else if (newTx.createdAt) txDate = new Date(newTx.createdAt);
+        else txDate = new Date();
+        const payDay = !isNaN(txDate.getTime()) ? txDate.getDate() : 24;
 
-        let updated = false;
-        // Update pemasukan bulanan jika berbeda
-        if (this.settings.monthlyIncome !== amount) {
-          this.settings.monthlyIncome = amount;
-          updated = true;
-        }
-        // Update tanggal gajian jika belum diset atau berbeda
-        if (!this.settings.payDay || this.settings.payDay !== payDay) {
-          this.settings.payDay = payDay;
-          updated = true;
-        }
-        if (updated) {
-          this.saveState();
-          this.showToast(`⚙️ Pengaturan diperbarui otomatis: Pemasukan Rp ${amount.toLocaleString('id-ID')}, Tanggal Gajian: ${payDay}`, 'info');
-        }
+        this.settings.monthlyIncome = amount;
+        this.settings.payDay = payDay;
+        this.saveState();
+        this.showToast(`⚙️ Pengaturan disinkronkan otomatis: Pemasukan Rp ${amount.toLocaleString('id-ID')}, Tanggal Gajian: tgl ${payDay}`, 'info');
       }
     }
 

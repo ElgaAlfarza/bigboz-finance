@@ -665,50 +665,84 @@
         </div>
       </div>
 
-      <!-- Row: Aturan 50/30/20 & Kalkulator Dana Darurat -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        <!-- Panduan Visual: Aturan 50/30/20 (Aktual vs Ideal) -->
-        <div class="lg:col-span-6 glass-card p-5 space-y-4">
-          <div class="flex items-center justify-between">
-            <h4 class="text-sm font-bold text-slate-100">Aturan 50 / 30 / 20: Realita vs Standar</h4>
-            <span class="text-xs px-2 py-0.5 rounded bg-sky-500/10 text-sky-400">Formula Klasik</span>
+      <!-- Kalkulator Anggaran Interaktif - 3 Rumus -->
+      <div class="glass-card p-5 space-y-5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h4 class="text-sm font-bold text-slate-100">💰 Kalkulator Alokasi Anggaran Gaji</h4>
+            <p class="text-xs text-slate-400 mt-0.5">Pilih rumus dan lihat simulasi pembagian gajimu secara langsung</p>
           </div>
-          <p class="text-xs text-slate-400 leading-relaxed">
-            Perbandingan alokasi pemasukan Anda saat ini dibanding formula ideal: 50% Kebutuhan Pokok, 30% Keinginan, 20% Tabungan/Investasi.
-          </p>
+          <!-- Tab Rumus -->
+          <div class="flex gap-1.5 flex-wrap">
+            <button id="ruleTab5020" onclick="FinVibeApp.switchBudgetRule('5020')"
+              class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors bg-sky-500 text-white rule-tab-active">
+              50/30/20
+            </button>
+            <button id="ruleTab40301020" onclick="FinVibeApp.switchBudgetRule('40301020')"
+              class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors bg-slate-700 text-slate-300 hover:bg-slate-600">
+              40/30/20/10
+            </button>
+            <button id="ruleTab8020" onclick="FinVibeApp.switchBudgetRule('8020')"
+              class="px-3 py-1.5 rounded-lg text-xs font-bold transition-colors bg-slate-700 text-slate-300 hover:bg-slate-600">
+              80/20
+            </button>
+          </div>
+        </div>
 
-          <!-- Stacked Progress Bar Aktual -->
-          <div class="space-y-1.5">
-            <div class="flex justify-between text-xs text-slate-300 font-semibold">
-              <span>Alokasi Aktual Anda</span>
+        <!-- Input Simulasi Gaji -->
+        <div class="flex items-center gap-3 bg-slate-800/60 rounded-xl p-3">
+          <div class="flex-1">
+            <label class="text-[10px] text-slate-400 font-semibold block mb-1">Gaji / Pemasukan untuk disimulasikan (Rp)</label>
+            <div class="relative">
+              <span class="absolute left-3 top-2 text-xs font-bold text-slate-400">Rp</span>
+              <input type="text" inputmode="numeric" id="calcBudgetSalary"
+                     oninput="FinVibeApp.formatRupiahInput(this); FinVibeApp.renderBudgetCalculator()"
+                     class="finvibe-input font-mono-num text-sm font-bold pl-9 w-full"
+                     placeholder="4.500.000">
             </div>
+          </div>
+          <div class="text-right text-xs text-slate-400">
+            <p>Dari penghasilan</p>
+            <p id="calcBudgetLabel" class="text-sky-400 font-bold text-sm">bulan ini</p>
+          </div>
+        </div>
+
+        <!-- Deskripsi Rumus Aktif -->
+        <div id="budgetRuleDesc" class="p-3 rounded-xl bg-sky-500/10 border border-sky-500/20 text-xs text-slate-300 leading-relaxed"></div>
+
+        <!-- Visual Bar Alokasi -->
+        <div>
+          <p class="text-[10px] text-slate-400 font-semibold mb-2">Visualisasi Alokasi</p>
+          <div id="calcBudgetBar" class="w-full h-8 bg-slate-800 rounded-xl overflow-hidden flex text-[10px] font-bold text-white leading-8 text-center"></div>
+        </div>
+
+        <!-- Kartu Alokasi Nominal -->
+        <div id="calcBudgetCards" class="grid grid-cols-2 sm:grid-cols-4 gap-2.5"></div>
+
+        <!-- Prinsip Utama -->
+        <div class="flex items-start gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-xs text-amber-200">
+          <i class="fa-solid fa-shield-halved text-amber-400 mt-0.5 flex-shrink-0"></i>
+          <p><strong>Prinsip Utama:</strong> Sebelum memperbesar porsi investasi, pastikan Dana Darurat sudah terbentuk sebesar 3–6× pengeluaran bulanan untuk mengantisipasi risiko finansial.</p>
+        </div>
+
+        <!-- Aktual vs Ideal (50/30/20) -->
+        <div class="border-t border-slate-700/60 pt-4 space-y-3">
+          <p class="text-xs font-semibold text-slate-300">📊 Aktual Anda vs Standar 50/30/20 Bulan Ini</p>
+          <div class="space-y-1.5">
+            <div class="flex justify-between text-xs text-slate-400"><span>Alokasi Aktual</span></div>
             <div class="w-full h-6 bg-slate-800 rounded-xl overflow-hidden flex text-[10px] font-bold text-white leading-6 text-center">
-              <div id="ruleActualNeeds" class="bg-red-500 transition-all duration-700" style="width: 50%">50%</div>
-              <div id="ruleActualWants" class="bg-amber-500 transition-all duration-700" style="width: 25%">25%</div>
-              <div id="ruleActualSavings" class="bg-emerald-500 transition-all duration-700" style="width: 25%">25%</div>
+              <div id="ruleActualNeeds" class="bg-red-500 transition-all duration-700" style="width: 0%">0%</div>
+              <div id="ruleActualWants" class="bg-amber-500 transition-all duration-700" style="width: 0%">0%</div>
+              <div id="ruleActualSavings" class="bg-emerald-500 transition-all duration-700" style="width: 0%">0%</div>
             </div>
             <div class="grid grid-cols-3 text-[11px] gap-1 pt-1">
-              <div class="text-left text-red-400">
-                <span class="inline-block w-2 h-2 rounded-full bg-red-400 mr-1"></span>Needs
-                <p id="valActualNeeds" class="font-mono-num font-bold text-slate-200">Rp 0</p>
-              </div>
-              <div class="text-center text-amber-400">
-                <span class="inline-block w-2 h-2 rounded-full bg-amber-400 mr-1"></span>Wants
-                <p id="valActualWants" class="font-mono-num font-bold text-slate-200">Rp 0</p>
-              </div>
-              <div class="text-right text-emerald-400">
-                <span class="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1"></span>Savings
-                <p id="valActualSavings" class="font-mono-num font-bold text-slate-200">Rp 0</p>
-              </div>
+              <div class="text-left text-red-400"><span class="inline-block w-2 h-2 rounded-full bg-red-400 mr-1"></span>Needs<p id="valActualNeeds" class="font-mono-num font-bold text-slate-200">Rp 0</p></div>
+              <div class="text-center text-amber-400"><span class="inline-block w-2 h-2 rounded-full bg-amber-400 mr-1"></span>Wants<p id="valActualWants" class="font-mono-num font-bold text-slate-200">Rp 0</p></div>
+              <div class="text-right text-emerald-400"><span class="inline-block w-2 h-2 rounded-full bg-emerald-400 mr-1"></span>Savings<p id="valActualSavings" class="font-mono-num font-bold text-slate-200">Rp 0</p></div>
             </div>
           </div>
-
-          <!-- Ideal Standard Bar -->
-          <div class="space-y-1.5 pt-2 border-t border-slate-700/50">
-            <div class="flex justify-between text-xs text-slate-400">
-              <span>Standar Ideal (50% / 30% / 20%)</span>
-            </div>
+          <div class="space-y-1.5">
+            <div class="flex justify-between text-xs text-slate-400"><span>Standar Ideal (50% / 30% / 20%)</span></div>
             <div class="w-full h-3 bg-slate-800 rounded-full overflow-hidden flex opacity-75">
               <div class="bg-red-500/70" style="width: 50%"></div>
               <div class="bg-amber-500/70" style="width: 30%"></div>
@@ -716,6 +750,10 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- Row: Dompet Tabungan -->
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
 
         <!-- Dompet Tabungan -->
         <div class="lg:col-span-6 glass-card p-5 space-y-4">
@@ -726,15 +764,11 @@
             </div>
             <span id="savingsWalletBadge" class="text-xs px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 font-semibold">Rp 0</span>
           </div>
-
-          <!-- Saldo Besar -->
           <div class="text-center py-3 bg-slate-800/50 rounded-xl">
             <p class="text-[11px] text-slate-400 mb-1">Saldo Tabungan Saat Ini</p>
             <p id="savingsWalletBalance" class="text-2xl font-bold font-mono-num text-emerald-400">Rp 0</p>
             <p id="savingsWalletSubtext" class="text-[10px] text-slate-500 mt-1">Belum ada tabungan bulan ini</p>
           </div>
-
-          <!-- Tombol Aksi -->
           <div class="grid grid-cols-2 gap-2">
             <button onclick="FinVibeApp.openSavingsModal('deposit')"
               class="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-lg bg-emerald-600/80 hover:bg-emerald-600 text-white text-xs font-bold transition-colors">
@@ -745,10 +779,39 @@
               <i class="fa-solid fa-minus"></i> Gunakan Tabungan
             </button>
           </div>
-
-          <!-- Riwayat Singkat Tabungan -->
           <div id="savingsHistoryList" class="space-y-1.5 max-h-28 overflow-y-auto text-xs">
             <p class="text-slate-500 text-center text-[11px] py-2">Belum ada riwayat tabungan</p>
+          </div>
+        </div>
+
+        <!-- Jenis Pengeluaran Info -->
+        <div class="lg:col-span-6 glass-card p-5 space-y-3">
+          <div>
+            <h4 class="text-sm font-bold text-slate-100">📂 4 Jenis Pengeluaran</h4>
+            <p class="text-xs text-slate-400 mt-0.5">Pahami sifat pengeluaranmu untuk pengendalian lebih baik</p>
+          </div>
+          <div class="space-y-2">
+            <div class="flex items-start gap-3 p-2.5 rounded-lg bg-red-500/10 border-l-2 border-red-500">
+              <span class="text-base">🔒</span>
+              <div><p class="text-xs font-bold text-red-300">Tetap (Fixed)</p><p class="text-[10px] text-slate-400">Nominal pasti, rutin tiap bulan. Contoh: sewa, KPR, SPP, asuransi.</p></div>
+            </div>
+            <div class="flex items-start gap-3 p-2.5 rounded-lg bg-amber-500/10 border-l-2 border-amber-500">
+              <span class="text-base">📊</span>
+              <div><p class="text-xs font-bold text-amber-300">Variabel</p><p class="text-[10px] text-slate-400">Ada tiap bulan tapi nominal berubah. Contoh: belanja, listrik, bensin.</p></div>
+            </div>
+            <div class="flex items-start gap-3 p-2.5 rounded-lg bg-purple-500/10 border-l-2 border-purple-500">
+              <span class="text-base">🎯</span>
+              <div><p class="text-xs font-bold text-purple-300">Diskresi / Gaya Hidup</p><p class="text-[10px] text-slate-400">Keinginan, bukan kebutuhan. Paling mudah dipangkas. Contoh: kafe, streaming, hobi.</p></div>
+            </div>
+            <div class="flex items-start gap-3 p-2.5 rounded-lg bg-slate-500/10 border-l-2 border-slate-500">
+              <span class="text-base">⚡</span>
+              <div><p class="text-xs font-bold text-slate-300">Tak Terduga</p><p class="text-[10px] text-slate-400">Mendadak & mendesak. Idealnya dari dana darurat. Contoh: sakit, servis kendaraan.</p></div>
+            </div>
+          </div>
+          <!-- Distribusi Jenis Pengeluaran Aktual -->
+          <div id="expenseTypeStats" class="hidden pt-2 border-t border-slate-700/50">
+            <p class="text-[10px] text-slate-400 font-semibold mb-2">Distribusi pengeluaran bulan ini berdasarkan jenis:</p>
+            <div id="expenseTypeChart" class="space-y-1.5"></div>
           </div>
         </div>
 
@@ -992,7 +1055,24 @@
         <!-- Dropdown Kategori -->
         <div>
           <label class="block text-xs font-semibold text-slate-300 mb-1">Kategori</label>
-          <select id="txCategory" required class="finvibe-input text-xs"></select>
+          <select id="txCategory" required onchange="FinVibeApp.handleCategoryChange(this)" class="finvibe-input text-xs"></select>
+        </div>
+
+        <!-- 4 Jenis Pengeluaran (Tetap, Variabel, Diskresi, Tak Terduga) -->
+        <div id="txExpenseTypeGroup">
+          <label class="block text-xs font-semibold text-slate-300 mb-1 flex items-center justify-between">
+            <span>Sifat / Jenis Pengeluaran</span>
+            <span class="text-[10px] text-amber-400 font-medium">Kontrol Anggaran</span>
+          </label>
+          <select id="txExpenseType" class="finvibe-input text-xs">
+            <option value="tetap">🔒 Pengeluaran Tetap (Fixed - Sewa, Cicilan, SPP, Asuransi)</option>
+            <option value="variabel">📊 Pengeluaran Variabel (Rutin berubah - Belanja, Listrik, Pulsa, Bensin)</option>
+            <option value="diskresi">🎯 Pengeluaran Diskresi / Gaya Hidup (Opsional - Kafe, Hobi, Streaming, Nonton)</option>
+            <option value="tak_terduga">⚡ Pengeluaran Tak Terduga (Mendesak - Berobat, Servis, Kerusakan)</option>
+          </select>
+          <p class="text-[10px] text-slate-500 mt-1">
+            💡 <b>Diskresi</b> adalah pos pertama yang dipangkas saat saldo menipis sebelum gajian.
+          </p>
         </div>
 
         <!-- Tanggal -->

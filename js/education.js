@@ -58,10 +58,9 @@ const FinancialEducation = {
   ],
 
   // Hitung Skor Kesehatan Finansial (0 - 100)
-  calculateHealthScore(stats, debts, settings) {
+  calculateHealthScore(stats, debts, settings, transactions = []) {
     const { income, expense, net } = stats;
     const totalDebtMonthly = DebtTracker.getTotalMonthlyInstallment(debts);
-    const dti = DebtTracker.calculateDTI(totalDebtMonthly, income);
     
     // 1. Savings Rate Score (Maks 35 poin)
     let savingsRate = 0;
@@ -71,13 +70,12 @@ const FinancialEducation = {
       if (savingsRate >= 25) savingsPoints = 35;
       else if (savingsRate >= 15) savingsPoints = 28;
       else if (savingsRate >= 5) savingsPoints = 18;
-      else if (savingsRate >= 0) savingsPoints = 10;
+      else if (savingsRate > 0) savingsPoints = 5;
       else savingsPoints = 0; // defisit
     }
 
     // 2. DTI Score (Maks 30 poin)
     // Gabungkan: cicilan dari DebtTracker + transaksi kategori "Cicilan"
-    // Ini menghindari DTI 30/30 saat user belum daftar utang di DebtTracker
     const cicilanFromTx = stats.cicilanExpense || 0;
     const effectiveDebtMonthly = Math.max(totalDebtMonthly, cicilanFromTx);
     const effectiveDTI = income > 0 ? (effectiveDebtMonthly / income) * 100 : 0;
@@ -98,14 +96,11 @@ const FinancialEducation = {
     }
 
     // 3. Dana Darurat Score (Maks 20 poin)
-    // Hanya dihitung jika ada data pengeluaran aktual — hindari skor palsu saat data kosong
     const currentEmergency = Number(settings.currentEmergencyFund || 0);
     const targetMultiplier = settings.profileType === 'freelancer' ? 9 : (settings.profileType === 'married' ? 6 : 3);
     const targetEmergency = expense > 0 ? expense * targetMultiplier : 0;
     const emergencyRatio = targetEmergency > 0 ? (currentEmergency / targetEmergency) : 0;
-    // Jika tidak ada pengeluaran (belum ada data), skor darurat = 0
     const emergencyPoints = expense > 0 ? Math.min(20, Math.round(emergencyRatio * 20)) : 0;
-
 
     // 4. Disiplin Pencatatan (Maks 15 poin)
     const txCount = stats.txCount || 0;
@@ -113,11 +108,81 @@ const FinancialEducation = {
     if (txCount >= 10) consistencyPoints = 15;
     else if (txCount >= 5) consistencyPoints = 10;
 
-    const totalScore = Math.min(100, Math.max(0, savingsPoints + dtiPoints + emergencyPoints + consistencyPoints));
+    // 5. Evaluasi Ketahanan Kas Menuju Gajian (Cashflow Runway & Danger Check)
+    const now = new Date();
+    const today = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const daysInNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0).getDate();
 
-    // Label kualitatif
+    let payDay = Number(settings.payDay || 0);
+    if (!payDay && transactions && transactions.length > 0) {
+      const gajiTx = transactions.find(t => t.type === 'income' && (t.category === 'Gaji' || t.category === 'Gaji & Tunjangan' || (t.category && t.category.toLowerCase().includes('gaji'))));
+      if (gajiTx) {
+        const d = gajiTx.createdAt ? new Date(gajiTx.createdAt) : new Date(gajiTx.date);
+        if (!isNaN(d.getTime())) payDay = d.getDate();
+      }
+    }
+
+    let daysUntilPayday = 0;
+    if (payDay > 0) {
+      if (today < payDay) {
+        daysUntilPayday = payDay - today;
+      } else {
+        daysUntilPayday = (daysInMonth - today) + Math.min(payDay, daysInNextMonth);
+      }
+    } else {
+      daysUntilPayday = Math.max(1, daysInMonth - today);
+    }
+
+    const netCash = income - expense;
+    const expenseRatio = income > 0 ? (expense / income) * 100 : 0;
+    const dailyRemaining = daysUntilPayday > 0 ? (netCash / daysUntilPayday) : netCash;
+
+    // Cari pos pengeluaran terbesar untuk saran pemangkasan langsung
+    const catTotals = {};
+    (transactions || []).forEach(tx => {
+      if (tx.type === 'expense') {
+        catTotals[tx.category] = (catTotals[tx.category] || 0) + Number(tx.amount);
+      }
+    });
+    const sortedExpenses = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
+    const topExpenseAdvice = sortedExpenses.length > 0
+      ? ` Pangkas pengeluaran terbesar: ${sortedExpenses.slice(0, 2).map(([c, amt]) => `${c} (Rp ${amt.toLocaleString('id-ID')})`).join(', ')}.`
+      : '';
+
+    let totalScore = Math.min(100, Math.max(0, savingsPoints + dtiPoints + emergencyPoints + consistencyPoints));
+
+    // Evaluasi Kualitatif dengan Penalti Ketat untuk Bahaya Arus Kas
     let grade = {};
-    if (totalScore >= 85) {
+
+    if (income > 0 && (expenseRatio >= 85 || netCash < 200000) && daysUntilPayday >= 5) {
+      // Kondisi Kritis: Sisa kas sangat tipis sementara gajian masih lama!
+      totalScore = Math.min(totalScore, 28);
+      grade = {
+        title: 'Kritis: Kas Menipis Ekstrem!',
+        badgeClass: 'badge-crimson',
+        color: '#EF4444',
+        advice: `⚠️ DARURAT ARUS KAS: Sisa saldo tinggal Rp ${Math.max(0, Math.round(netCash)).toLocaleString('id-ID')} (${Math.round(100 - expenseRatio)}% dari gaji) sementara gajian masih ${daysUntilPayday} hari lagi (~Rp ${Math.max(0, Math.round(dailyRemaining)).toLocaleString('id-ID')}/hari)!${topExpenseAdvice} Segera rem total pengeluaran diskresi & gaya hidup!`
+      };
+    } else if (netCash < 0) {
+      // Arus kas defisit
+      totalScore = Math.min(totalScore, 20);
+      grade = {
+        title: 'Kritis: Arus Kas Defisit!',
+        badgeClass: 'badge-crimson',
+        color: '#EF4444',
+        advice: `⚠️ DEFISIT: Pengeluaran bulan ini melebihi pemasukan sebesar Rp ${Math.round(Math.abs(netCash)).toLocaleString('id-ID')}.${topExpenseAdvice} Hentikan semua belanja non-kebutuhan!`
+      };
+    } else if (income > 0 && expenseRatio >= 70 && daysUntilPayday >= 10) {
+      // Peringatan arus kas tipis
+      totalScore = Math.min(totalScore, 48);
+      grade = {
+        title: 'Perlu Perhatian: Saldo Menipis',
+        badgeClass: 'badge-amber',
+        color: '#F59E0B',
+        advice: `⚠️ Saldo menipis: Sisa saldo Rp ${Math.round(netCash).toLocaleString('id-ID')} untuk ${daysUntilPayday} hari ke depan (~Rp ${Math.max(0, Math.round(dailyRemaining)).toLocaleString('id-ID')}/hari).${topExpenseAdvice}`
+      };
+    } else if (totalScore >= 85) {
       grade = {
         title: 'Sangat Sehat & Prima',
         badgeClass: 'badge-emerald',
@@ -150,6 +215,9 @@ const FinancialEducation = {
     return {
       totalScore,
       grade,
+      daysUntilPayday,
+      netCash,
+      dailyRemaining,
       breakdown: {
         savings: { points: savingsPoints, max: 35, rate: Math.round(savingsRate) },
         dti: { points: dtiPoints, max: 30, ratio: Math.round(effectiveDTI * 10) / 10 },
@@ -167,6 +235,56 @@ const FinancialEducation = {
     const { income, expense, dailyBurnRate } = stats;
     const totalDebtMonthly = DebtTracker.getTotalMonthlyInstallment(debts);
     const dti = DebtTracker.calculateDTI(totalDebtMonthly, income);
+
+    // 0. Cek Runway Arus Kas Kritis (Uang Tipis Jelang Gajian)
+    const now = new Date();
+    const today = now.getDate();
+    const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const daysInNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0).getDate();
+
+    let payDay = Number(settings.payDay || 0);
+    if (!payDay && transactions && transactions.length > 0) {
+      const gajiTx = transactions.find(t => t.type === 'income' && (t.category === 'Gaji' || t.category === 'Gaji & Tunjangan' || (t.category && t.category.toLowerCase().includes('gaji'))));
+      if (gajiTx) {
+        const d = gajiTx.createdAt ? new Date(gajiTx.createdAt) : new Date(gajiTx.date);
+        if (!isNaN(d.getTime())) payDay = d.getDate();
+      }
+    }
+
+    let daysUntilPayday = 0;
+    if (payDay > 0) {
+      if (today < payDay) {
+        daysUntilPayday = payDay - today;
+      } else {
+        daysUntilPayday = (daysInMonth - today) + Math.min(payDay, daysInNextMonth);
+      }
+    } else {
+      daysUntilPayday = Math.max(1, daysInMonth - today);
+    }
+
+    const netCash = income - expense;
+    const expensePct = income > 0 ? (expense / income) * 100 : 0;
+    if (income > 0 && expensePct >= 80 && daysUntilPayday >= 4) {
+      const catTotals = {};
+      (transactions || []).forEach(tx => {
+        if (tx.type === 'expense') {
+          catTotals[tx.category] = (catTotals[tx.category] || 0) + Number(tx.amount);
+        }
+      });
+      const topItems = Object.entries(catTotals)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 3)
+        .map(([c, amt]) => `${c} (Rp ${amt.toLocaleString('id-ID')})`);
+
+      insights.unshift({
+        type: 'danger',
+        icon: 'alert-triangle',
+        title: '🚨 Peringatan: Saldo Kritis Jelang Gajian!',
+        text: `Sisa saldo Anda tinggal Rp ${Math.max(0, netCash).toLocaleString('id-ID')} untuk ${daysUntilPayday} hari ke depan (~Rp ${Math.max(0, Math.round(netCash / daysUntilPayday)).toLocaleString('id-ID')}/hari). Segera pangkas pengeluaran terbesar: ${topItems.join(', ')}!`,
+        actionText: 'Lihat Analisis Budget',
+        actionTarget: 'education'
+      });
+    }
 
     // 1. Cek DTI
     if (dti > 35) {
@@ -244,7 +362,6 @@ const FinancialEducation = {
     }
 
     // 4. Cek Burn Rate Harian
-    const daysInMonth = new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate();
     const safeDailyAllowance = income > 0 ? Math.round((income * 0.7) / daysInMonth) : 0;
     if (dailyBurnRate > safeDailyAllowance && safeDailyAllowance > 0) {
       insights.push({
