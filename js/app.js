@@ -760,11 +760,15 @@ const FinVibeApp = {
 
     let income = 0;
     let expense = 0;
+    let cicilanExpense = 0; // total pengeluaran kategori Cicilan bulan ini
 
     monthlyTx.forEach(tx => {
       const amt = Number(tx.amount) || 0;
       if (tx.type === 'income') income += amt;
-      if (tx.type === 'expense') expense += amt;
+      if (tx.type === 'expense') {
+        expense += amt;
+        if (tx.category === 'Cicilan') cicilanExpense += amt;
+      }
     });
 
     const net = income - expense;
@@ -773,11 +777,27 @@ const FinVibeApp = {
     const currentDay = Math.max(1, now.getDate());
     const dailyBurnRate = expense / currentDay;
 
+    // Auto-deteksi tanggal gajian dari transaksi Gaji terbaru jika payDay belum diset
+    let detectedPayDay = this.settings.payDay || 0;
+    if (!detectedPayDay) {
+      const lastGaji = this.transactions.find(tx =>
+        tx.type === 'income' && (tx.category === 'Gaji & Tunjangan' || tx.category === 'Bonus & Komisi')
+      );
+      if (lastGaji) {
+        const d = lastGaji.createdAt ? new Date(lastGaji.createdAt) : new Date(lastGaji.date);
+        detectedPayDay = d.getDate();
+        // Simpan ke settings jika belum ada
+        this.settings.payDay = detectedPayDay;
+        this.saveState();
+      }
+    }
+
     return {
       income,
       expense,
       net,
       dailyBurnRate,
+      cicilanExpense,
       txCount: monthlyTx.length,
       totalTxCount: this.transactions.length
     };
@@ -1482,7 +1502,7 @@ const FinVibeApp = {
   renderBudgetAdvisor(stats) {
     const payDay = Number(this.settings.payDay || 0);
     const card = document.getElementById('budgetAdvisorCard');
-    if (!card || payDay === 0) {
+    if (!card || payDay === 0 || stats.income <= 0) {
       if (card) card.classList.add('hidden');
       return;
     }
@@ -1490,16 +1510,17 @@ const FinVibeApp = {
     const now = new Date();
     const today = now.getDate();
     const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const daysInNextMonth = new Date(now.getFullYear(), now.getMonth() + 2, 0).getDate();
 
     // Hitung hari ke gajian berikutnya
+    // Jika today >= payDay → sudah gajian bulan ini → hitung ke bulan depan
     let daysUntilPayday;
     if (today < payDay) {
       daysUntilPayday = payDay - today;
-    } else if (today === payDay) {
-      daysUntilPayday = 0;
     } else {
-      // Sudah lewat gajian bulan ini, hitung ke bulan depan
-      daysUntilPayday = (daysInMonth - today) + payDay;
+      // Hari ini = hari gajian ATAU sudah lewat → hitung ke bulan depan
+      // Misal gajian tgl 24, hari ini 24 → next payday 24 bulan depan = ~30 hari
+      daysUntilPayday = (daysInMonth - today) + Math.min(payDay, daysInNextMonth);
     }
 
     const { income, expense, dailyBurnRate } = stats;
@@ -1507,8 +1528,11 @@ const FinVibeApp = {
     const projectedSpendUntilPayday = dailyBurnRate * daysUntilPayday;
     const projectedLeftover = netBalance - projectedSpendUntilPayday;
 
-    // Tampilkan peringatan hanya jika proyeksi saldo tipis (<20% dari income) dan masih > 5 hari ke gajian
-    const isWarning = projectedLeftover < (income * 0.2) && daysUntilPayday > 5 && income > 0;
+    // Tampilkan peringatan jika:
+    // - sisa saldo setelah proyeksi pengeluaran < 30% income
+    // - ATAU saldo bersih (net) negatif
+    // - DAN masih > 3 hari ke gajian
+    const isWarning = (projectedLeftover < (income * 0.3) || netBalance < 0) && daysUntilPayday > 3 && income > 0;
 
     if (!isWarning) {
       card.classList.add('hidden');
@@ -1525,7 +1549,7 @@ const FinVibeApp = {
     const projectedEl = document.getElementById('advisorProjectedLeft');
     const topExpEl = document.getElementById('advisorTopExpenses');
 
-    if (subtitle) subtitle.textContent = `Dengan pola belanja saat ini, diperkirakan saldo menipis sebelum gajian tgl ${payDay}`;
+    if (subtitle) subtitle.textContent = `Dengan pola belanja saat ini, diperkirakan saldo menipis sebelum gajian tgl ${payDay} (${daysUntilPayday} hari lagi)`;
     if (daysLeftLabel) daysLeftLabel.textContent = `${daysUntilPayday} hari lagi gajian`;
     if (dailyBurnEl) dailyBurnEl.textContent = this.formatRupiah(Math.round(dailyBurnRate));
     if (daysLeftEl) daysLeftEl.textContent = `${daysUntilPayday} hari`;

@@ -76,16 +76,21 @@ const FinancialEducation = {
     }
 
     // 2. DTI Score (Maks 30 poin)
-    // Hanya dihitung jika ada income — hindari skor palsu saat data kosong
+    // Gabungkan: cicilan dari DebtTracker + transaksi kategori "Cicilan"
+    // Ini menghindari DTI 30/30 saat user belum daftar utang di DebtTracker
+    const cicilanFromTx = stats.cicilanExpense || 0;
+    const effectiveDebtMonthly = Math.max(totalDebtMonthly, cicilanFromTx);
+    const effectiveDTI = income > 0 ? (effectiveDebtMonthly / income) * 100 : 0;
+
     let dtiPoints = 0;
     if (income > 0) {
-      if (debts.length === 0 || totalDebtMonthly === 0) {
-        dtiPoints = 30; // Bebas utang
-      } else if (dti < 20) {
+      if (effectiveDebtMonthly === 0) {
+        dtiPoints = 30; // Bebas utang / cicilan
+      } else if (effectiveDTI < 20) {
         dtiPoints = 28;
-      } else if (dti < 30) {
+      } else if (effectiveDTI < 30) {
         dtiPoints = 25;
-      } else if (dti <= 40) {
+      } else if (effectiveDTI <= 40) {
         dtiPoints = 15;
       } else {
         dtiPoints = 5;
@@ -147,7 +152,7 @@ const FinancialEducation = {
       grade,
       breakdown: {
         savings: { points: savingsPoints, max: 35, rate: Math.round(savingsRate) },
-        dti: { points: dtiPoints, max: 30, ratio: dti },
+        dti: { points: dtiPoints, max: 30, ratio: Math.round(effectiveDTI * 10) / 10 },
         emergency: { points: emergencyPoints, max: 20, ratio: Math.min(100, Math.round(emergencyRatio * 100)) },
         consistency: { points: consistencyPoints, max: 15, count: txCount }
       },
