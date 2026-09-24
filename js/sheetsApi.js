@@ -118,6 +118,19 @@ const SheetsApi = {
     return null;
   },
 
+  // Hapus semua baris data (bukan header) dari sheet Transactions dan Debts
+  async clearSheetData(spreadsheetId) {
+    console.log('[SheetsApi] Menghapus semua data dari Google Sheets...');
+    const ranges = ['Transactions!A2:Z10000', 'Debts!A2:Z10000', 'PaymentHistory!A2:Z10000'];
+    const url = `${this.BASE_SHEETS_URL}/${spreadsheetId}/values:batchClear`;
+    await this.fetchWithRetry(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ranges })
+    });
+    console.log('[SheetsApi] Data Google Sheets berhasil dikosongkan.');
+  },
+
   // Mencari atau membuat folder "BigBoz-Bukti-Transaksi" di Drive
   async getOrCreateProofFolder(userEmail) {
     const folderKey = `bigboz_proof_folder_${userEmail}`;

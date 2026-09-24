@@ -301,11 +301,36 @@ const FinVibeApp = {
       const cloudData = await SheetsApi.batchGetAllData(this.spreadsheetId);
 
       // Perbarui in-memory state jika sheet cloud memiliki baris data
+      // Cek apakah user pernah hapus semua data — jangan restore data yang lebih tua
+      const clearedAt = localStorage.getItem('bigboz_cleared_at');
+      const clearedTime = clearedAt ? new Date(clearedAt) : null;
+
       if (cloudData.transactions && cloudData.transactions.length > 0) {
-        this.transactions = cloudData.transactions;
+        // Filter: hanya ambil transaksi yang dibuat SETELAH user hapus data
+        const validTx = clearedTime
+          ? cloudData.transactions.filter(tx => {
+              const txTime = tx.createdAt ? new Date(tx.createdAt)
+                : (tx.date ? (typeof tx.date === 'number' ? new Date((tx.date - 25569) * 86400000) : new Date(tx.date))
+                : null);
+              return txTime && txTime > clearedTime;
+            })
+          : cloudData.transactions;
+
+        if (validTx.length > 0) {
+          this.transactions = validTx;
+        }
       }
       if (cloudData.debts && cloudData.debts.length > 0) {
-        this.debts = cloudData.debts;
+        // Filter: hanya ambil utang yang dibuat SETELAH user hapus data
+        const validDebts = clearedTime
+          ? cloudData.debts.filter(debt => {
+              const debtTime = debt.createdAt ? new Date(debt.createdAt) : null;
+              return !debtTime || debtTime > clearedTime;
+            })
+          : cloudData.debts;
+        if (validDebts.length > 0) {
+          this.debts = validDebts;
+        }
       }
       if (cloudData.paymentHistory) {
         this.paymentHistory = cloudData.paymentHistory;
@@ -2162,14 +2187,31 @@ const FinVibeApp = {
 
   // Reset Semua Data
   clearAllData() {
-    if (!confirm('PERINGATAN: Seluruh catatan transaksi dan cicilan Anda akan dihapus bersih dari perangkat. Lanjutkan?')) return;
+    if (!confirm('PERINGATAN: Seluruh catatan transaksi dan cicilan Anda akan dihapus bersih dari perangkat DAN Google Sheets. Lanjutkan?')) return;
+
     this.transactions = [];
     this.debts = [];
     this.settings = { ...DEFAULT_SETTINGS, monthlySavingsTarget: 0, currentEmergencyFund: 0 };
+
+    // Simpan timestamp kapan data dihapus — dipakai untuk blokir restore dari cloud
+    const clearedAt = new Date().toISOString();
+    localStorage.setItem('bigboz_cleared_at', clearedAt);
+
+    // Hapus juga dari Google Sheets agar tidak muncul kembali saat refresh
+    if (window.GoogleAuth && GoogleAuth.isSignedIn() && this.spreadsheetId) {
+      SheetsApi.clearSheetData(this.spreadsheetId)
+        .then(() => this.showToast('✅ Data lokal & Google Sheets berhasil dikosongkan.', 'success'))
+        .catch(e => {
+          console.warn('[BigBoz] Gagal hapus data dari Sheets:', e);
+          this.showToast('Data lokal dihapus. Gagal hapus dari Sheets (coba manual).', 'warning');
+        });
+    } else {
+      this.showToast('Seluruh data lokal berhasil dibersihkan.', 'info');
+    }
+
     this.saveState();
     this.closeSettingsModal();
     this.renderAll();
-    this.showToast('Seluruh data berhasil dibersihkan.', 'info');
   },
 
   // Trigger Voice Input
