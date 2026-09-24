@@ -790,6 +790,30 @@ const FinVibeApp = {
     return withPrefix ? `Rp ${formatted}` : formatted;
   },
 
+  // Live formatter untuk input nominal — tampilkan 4.500.000 saat ketik 4500000
+  formatRupiahInput(input) {
+    const cursorPos = input.selectionStart;
+    const prevLen = input.value.length;
+    // Ambil hanya digit
+    const raw = input.value.replace(/\D/g, '');
+    if (!raw) { input.value = ''; return; }
+    const num = parseInt(raw, 10);
+    const formatted = num.toLocaleString('id-ID'); // e.g. "4.500.000"
+    input.value = formatted;
+    // Preserve cursor position
+    const newLen = formatted.length;
+    const newPos = cursorPos + (newLen - prevLen);
+    try { input.setSelectionRange(Math.max(0, newPos), Math.max(0, newPos)); } catch {}
+  },
+
+  // Baca nilai angka dari input terformat (strip titik/koma)
+  getRawAmount(inputId) {
+    const input = document.getElementById(inputId);
+    if (!input) return 0;
+    return Number(input.value.replace(/\D/g, '')) || 0;
+  },
+
+
   // Konversi nilai tanggal (bisa serial Excel atau string) ke objek Date
   parseDateValue(val) {
     if (!val) return new Date(0);
@@ -1408,7 +1432,7 @@ const FinVibeApp = {
   },
 
   async confirmSavings() {
-    const amount = Number(document.getElementById('savingsAmount').value);
+    const amount = this.getRawAmount('savingsAmount') || Number(document.getElementById('savingsAmount').value);
     const note = document.getElementById('savingsNote').value.trim();
     const warn = document.getElementById('savingsWarning');
 
@@ -1845,7 +1869,8 @@ const FinVibeApp = {
     const editId = document.getElementById('txEditId').value;
     const type = document.getElementById('txType').value;
     const amountInput = document.getElementById('txAmount');
-    const amount = Number(amountInput.value);
+    // Support both plain number input and formatted text (e.g. "4.500.000")
+    const amount = this.getRawAmount('txAmount') || Number(amountInput.value);
     const category = document.getElementById('txCategory').value;
     const date = document.getElementById('txDate').value;
     const notes = document.getElementById('txNotes').value.trim();
@@ -1907,6 +1932,28 @@ const FinVibeApp = {
       this._lastTxSource = 'manual';
       this.syncToSheets('ADD_TRANSACTION', newTx);
       this.showToast(`Transaksi ${type === 'income' ? 'pemasukan' : 'pengeluaran'} sebesar Rp ${amount.toLocaleString('id-ID')} berhasil dicatat & disinkronkan!`, 'success');
+
+      // 🔄 Auto-sinkron Pengaturan saat input Gaji
+      if (type === 'income' && (category === 'Gaji & Tunjangan' || category === 'Bonus & Komisi')) {
+        const txDate = new Date(date || newTx.date);
+        const payDay = txDate.getDate();
+
+        let updated = false;
+        // Update pemasukan bulanan jika berbeda
+        if (this.settings.monthlyIncome !== amount) {
+          this.settings.monthlyIncome = amount;
+          updated = true;
+        }
+        // Update tanggal gajian jika belum diset atau berbeda
+        if (!this.settings.payDay || this.settings.payDay !== payDay) {
+          this.settings.payDay = payDay;
+          updated = true;
+        }
+        if (updated) {
+          this.saveState();
+          this.showToast(`⚙️ Pengaturan diperbarui otomatis: Pemasukan Rp ${amount.toLocaleString('id-ID')}, Tanggal Gajian: ${payDay}`, 'info');
+        }
+      }
     }
 
     this.clearSelectedPhoto('tx');
@@ -2086,10 +2133,10 @@ const FinVibeApp = {
 
     const monthlyIncInput = document.getElementById('settingMonthlyIncome');
     if (monthlyIncInput) {
-      monthlyIncInput.value = this.settings.monthlyIncome || 16750000;
+      monthlyIncInput.value = this.settings.monthlyIncome ?? '';
     }
-    document.getElementById('settingSavingsTarget').value = this.settings.monthlySavingsTarget || 3500000;
-    document.getElementById('settingEmergencyFund').value = this.settings.currentEmergencyFund || 18000000;
+    document.getElementById('settingSavingsTarget').value = this.settings.monthlySavingsTarget ?? '';
+    document.getElementById('settingEmergencyFund').value = this.settings.currentEmergencyFund ?? '';
     const payDayInput = document.getElementById('settingPayDay');
     if (payDayInput) payDayInput.value = this.settings.payDay || '';
     document.getElementById('settingProfileType').value = this.settings.profileType || 'single';
